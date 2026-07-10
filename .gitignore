@@ -1,0 +1,5 @@
+.env.local
+.expo-home/
+.npm-cache/
+.expo/
+node_modules/
