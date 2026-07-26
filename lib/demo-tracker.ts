@@ -1,4 +1,4 @@
-import { clamp, estimateEtaMinutes, estimateProgressAlongRoute, getRouteById, interpolateRoutePoint, type LatLng, type TripSnapshot } from '@/lib/abangbus-data';
+import { clamp, defaultRouteId, estimateEtaMinutes, estimateProgressAlongRoute, getRouteById, interpolateRoutePoint, type LatLng, type TripSnapshot } from '@/lib/abangbus-data';
 
 type Listener = (trips: TripSnapshot[]) => void;
 
@@ -28,8 +28,8 @@ function createSeedTrip(routeId: string, busCode: string, driverName: string, pr
 }
 
 const seedTrips: TripSnapshot[] = [
-  createSeedTrip('route-04c', 'AB-142', 'Kuya Ben', 0.26, 26),
-  createSeedTrip('route-06b', 'CEB-019', 'Ate Lani', 0.68, 31),
+  createSeedTrip(defaultRouteId, 'AB-142', 'Kuya Ben', 0.26, 26),
+  createSeedTrip(defaultRouteId, 'AB-208', 'Ate Lani', 0.68, 31),
 ];
 
 let activeTrips = [...seedTrips];

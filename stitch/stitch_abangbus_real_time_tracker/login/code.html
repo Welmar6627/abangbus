@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AbangBus - Sign In</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface": "#f8f9ff",
+                    "primary-fixed": "#d3e4ff",
+                    "surface-dim": "#cbdbf5",
+                    "secondary-fixed": "#98f994",
+                    "on-secondary-fixed-variant": "#005313",
+                    "on-surface-variant": "#404752",
+                    "on-tertiary-container": "#fffbff",
+                    "secondary-container": "#98f994",
+                    "primary": "#005ea4",
+                    "surface-container-highest": "#d3e4fe",
+                    "primary-fixed-dim": "#a2c9ff",
+                    "on-tertiary-fixed": "#261a00",
+                    "secondary-fixed-dim": "#7ddc7a",
+                    "tertiary": "#755700",
+                    "surface-bright": "#f8f9ff",
+                    "tertiary-fixed-dim": "#fabd00",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-variant": "#d3e4fe",
+                    "on-background": "#0b1c30",
+                    "inverse-surface": "#213145",
+                    "on-surface": "#0b1c30",
+                    "surface-container-high": "#dce9ff",
+                    "on-primary-fixed-variant": "#004881",
+                    "outline-variant": "#c0c7d4",
+                    "inverse-primary": "#a2c9ff",
+                    "tertiary-container": "#946f00",
+                    "on-primary-container": "#fdfcff",
+                    "on-error": "#ffffff",
+                    "error": "#ba1a1a",
+                    "on-secondary": "#ffffff",
+                    "tertiary-fixed": "#ffdf9e",
+                    "on-secondary-fixed": "#002204",
+                    "inverse-on-surface": "#eaf1ff",
+                    "on-tertiary-fixed-variant": "#5b4300",
+                    "outline": "#707783",
+                    "background": "#f8f9ff",
+                    "error-container": "#ffdad6",
+                    "surface-container-low": "#eff4ff",
+                    "on-error-container": "#93000a",
+                    "surface-container": "#e5eeff",
+                    "on-secondary-container": "#0c7521",
+                    "surface-tint": "#0060a8",
+                    "on-primary": "#ffffff",
+                    "on-tertiary": "#ffffff",
+                    "on-primary-fixed": "#001c38",
+                    "secondary": "#006e1c",
+                    "primary-container": "#0077ce"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "base": "4px",
+                    "margin-desktop": "48px",
+                    "gutter": "16px",
+                    "xs": "4px",
+                    "lg": "24px",
+                    "sm": "8px",
+                    "margin-mobile": "16px",
+                    "xl": "32px",
+                    "md": "16px"
+            },
+            "fontFamily": {
+                    "headline-md": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "body-md": ["Inter"],
+                    "headline-sm": ["Inter"],
+                    "label-sm": ["Inter"],
+                    "label-md": ["Inter"],
+                    "label-lg": ["Inter"],
+                    "display-lg": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "headline-sm": ["16px", {"lineHeight": "24px", "fontWeight": "600"}],
+                    "label-sm": ["11px", {"lineHeight": "16px", "letterSpacing": "0.5px", "fontWeight": "500"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.5px", "fontWeight": "500"}],
+                    "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.1px", "fontWeight": "500"}],
+                    "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9ff;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .status-bar-indicator {
+            width: 4px;
+            height: 100%;
+            border-radius: 4px 0 0 4px;
+        }
+        @keyframes pulse-soft {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.02); }
+        }
+        .animate-pulse-soft {
+            animation: pulse-soft 3s infinite ease-in-out;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface selection:bg-primary-fixed selection:text-on-primary-fixed">
+<main class="min-h-screen w-full flex items-center justify-center relative overflow-hidden">
+<!-- Abstract Background Decoration -->
+<div class="absolute inset-0 z-0 opacity-10 pointer-events-none">
+<div class="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] bg-primary rounded-full blur-[120px]"></div>
+<div class="absolute -bottom-[10%] -right-[10%] w-[50%] h-[50%] bg-secondary rounded-full blur-[120px]"></div>
+</div>
+<!-- Login Container -->
+<div class="relative z-10 w-full max-w-[440px] px-margin-mobile md:px-0">
+<!-- Branding Header -->
+<div class="text-center mb-lg">
+<div class="inline-flex items-center justify-center p-4 bg-primary-container text-on-primary-container rounded-xl mb-md shadow-sm">
+<span class="material-symbols-outlined !text-[40px]" data-icon="directions_bus">directions_bus</span>
+</div>
+<h1 class="font-display-lg text-display-lg text-primary tracking-tight">AbangBus</h1>
+<p class="font-body-md text-body-md text-on-surface-variant mt-xs">Reliable urban transit at your fingertips</p>
+</div>
+<!-- Main Form Card -->
+<div class="bg-surface-container-lowest rounded-[24px] shadow-[0px_4px_20px_rgba(0,0,0,0.05)] p-lg border border-outline-variant/30">
+<form class="space-y-md" onsubmit="event.preventDefault();">
+<!-- Phone Input -->
+<div class="space-y-xs">
+<label class="font-label-lg text-label-lg text-on-surface-variant px-1" for="phone">Phone Number</label>
+<div class="relative group">
+<div class="absolute inset-y-0 left-0 pl-md flex items-center pointer-events-none text-outline group-focus-within:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="call">call</span>
+</div>
+<input class="w-full pl-[44px] pr-md py-3.5 bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none font-body-md text-on-surface placeholder:text-outline-variant" id="phone" name="phone" placeholder="+1 (555) 000-0000" type="tel"/>
+</div>
+</div>
+<!-- Password/Action Links Section -->
+<div class="flex items-center justify-between px-1">
+<label class="flex items-center space-x-sm cursor-pointer group">
+<div class="relative flex items-center">
+<input class="peer h-5 w-5 rounded border-outline-variant text-primary focus:ring-primary cursor-pointer" type="checkbox"/>
+</div>
+<span class="font-label-md text-label-md text-on-surface-variant group-hover:text-on-surface transition-colors">Remember Me</span>
+</label>
+<a class="font-label-md text-label-md text-primary hover:underline transition-all" href="#">Forgot Password?</a>
+</div>
+<!-- Primary CTA -->
+<button class="w-full bg-primary text-on-primary py-4 rounded-full font-label-lg text-label-lg shadow-lg hover:bg-primary-container hover:text-on-primary-container active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-sm" type="submit">
+<span>Sign In</span>
+<span class="material-symbols-outlined text-[20px]" data-icon="arrow_forward">arrow_forward</span>
+</button>
+<!-- Divider -->
+<div class="relative py-4 flex items-center">
+<div class="flex-grow border-t border-outline-variant"></div>
+<span class="flex-shrink mx-4 font-label-sm text-label-sm text-outline uppercase tracking-widest">or</span>
+<div class="flex-grow border-t border-outline-variant"></div>
+</div>
+<!-- Google Sign In -->
+<button class="w-full bg-surface-container-lowest border border-outline-variant text-on-surface-variant py-3.5 rounded-full font-label-lg text-label-lg flex items-center justify-center gap-sm hover:bg-surface-container transition-all active:scale-[0.98]" type="button">
+<img class="w-5 h-5" data-alt="Official Google logo with its characteristic multi-colored G icon in red, yellow, green, and blue, presented on a transparent background for a clean, professional UI integration. The icon is crisp and high-resolution, symbolizing trust and easy authentication for modern applications." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCM6mxt4wSpn_FX1K7ZCgozUeY7gFNGVPXmeArGQv7QnO0ZhNU2SykPZiK9CwVXHNX6N1uuK7M9E4S1afHy9nIxam8afFAmTskE2hpyVwAEyLGFFUUy5OcAaT2ty5y-QMl6FubKucWNMtjfqDDNqev3Pug5mVnUflDeXjzLqBnjFEe8PCGxOAN09zaYnZfgi4Y1Ma5kg3odJUoBHDxlmWKwhryZtwHyxQtSCSYk6EdVPgE4XurVWB2D-pywF4CxhdSPa4WsLaYRxGbM"/>
+<span>Sign in with Google</span>
+</button>
+</form>
+<!-- Footer Links -->
+<div class="mt-lg pt-md border-t border-outline-variant/30 text-center space-y-sm">
+<p class="font-body-md text-body-md text-on-surface-variant">
+                        Don't have an account? <a class="text-primary font-semibold hover:underline" href="#">Create Account</a>
+</p>
+<a class="inline-block font-label-lg text-label-lg text-outline hover:text-primary transition-colors py-2" href="#">
+                        Continue as Guest
+                    </a>
+</div>
+</div>
+<!-- Info Chips -->
+<div class="mt-lg flex flex-wrap justify-center gap-sm">
+<div class="px-3 py-1.5 bg-secondary-container/30 rounded-full flex items-center gap-xs">
+<span class="w-2 h-2 bg-secondary rounded-full animate-pulse"></span>
+<span class="font-label-sm text-label-sm text-on-secondary-container">Live Status Ready</span>
+</div>
+<div class="px-3 py-1.5 bg-tertiary-fixed/30 rounded-full flex items-center gap-xs">
+<span class="material-symbols-outlined text-[14px] text-tertiary" data-icon="verified">verified</span>
+<span class="font-label-sm text-label-sm text-on-tertiary-fixed-variant">Secure Login</span>
+</div>
+</div>
+</div>
+</main>
+<!-- Background Illustration (Subtle) -->
+<div class="fixed bottom-0 left-0 w-full h-[265px] z-0 pointer-events-none opacity-40 overflow-hidden">
+<div class="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[1200px] h-full flex items-end justify-around">
+<div class="w-1/4 h-3/4 bg-gradient-to-t from-surface-dim to-transparent rounded-t-full opacity-20"></div>
+<div class="w-1/6 h-1/2 bg-gradient-to-t from-primary-fixed to-transparent rounded-t-full opacity-10"></div>
+<div class="w-1/3 h-2/3 bg-gradient-to-t from-surface-variant to-transparent rounded-t-full opacity-15"></div>
+</div>
+</div>
+<!-- Micro-interaction Script -->
+<script>
+        document.querySelectorAll('button, a').forEach(el => {
+            el.addEventListener('click', function(e) {
+                if (this.getAttribute('href') === '#') e.preventDefault();
+                // Minimalist ripple or feedback could go here
+            });
+        });
+
+        // Toggle focus state visual for the card
+        const inputs = document.querySelectorAll('input');
+        const card = document.querySelector('.bg-surface-container-lowest');
+        
+        inputs.forEach(input => {
+            input.addEventListener('focus', () => {
+                card.classList.add('shadow-[0px_8px_30px_rgba(0,94,164,0.08)]');
+                card.style.transform = 'translateY(-2px)';
+                card.style.transition = 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            });
+            input.addEventListener('blur', () => {
+                card.classList.remove('shadow-[0px_8px_30px_rgba(0,94,164,0.08)]');
+                card.style.transform = 'translateY(0px)';
+            });
+        });
+    </script>
+</body></html>

@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AbangBus - Live Map</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .filled-icon {
+            font-variation-settings: 'FILL' 1;
+        }
+        .pulse-animation {
+            animation: pulse-ring 2s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.33); opacity: 0.8; }
+            80%, 100% { transform: scale(1.2); opacity: 0; }
+        }
+        .map-gradient-overlay {
+            background: linear-gradient(to bottom, rgba(248, 249, 255, 0.8) 0%, rgba(248, 249, 255, 0) 15%, rgba(248, 249, 255, 0) 85%, rgba(248, 249, 255, 0.8) 100%);
+        }
+        .bottom-sheet {
+            transition: transform 0.4s cubic-bezier(0.33, 1, 0.68, 1);
+        }
+        .bus-card-status {
+            width: 4px;
+            height: 100%;
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface": "#f8f9ff",
+                        "primary-fixed": "#d3e4ff",
+                        "surface-dim": "#cbdbf5",
+                        "secondary-fixed": "#98f994",
+                        "on-secondary-fixed-variant": "#005313",
+                        "on-surface-variant": "#404752",
+                        "on-tertiary-container": "#fffbff",
+                        "secondary-container": "#98f994",
+                        "primary": "#005ea4",
+                        "surface-container-highest": "#d3e4fe",
+                        "primary-fixed-dim": "#a2c9ff",
+                        "on-tertiary-fixed": "#261a00",
+                        "secondary-fixed-dim": "#7ddc7a",
+                        "tertiary": "#755700",
+                        "surface-bright": "#f8f9ff",
+                        "tertiary-fixed-dim": "#fabd00",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-variant": "#d3e4fe",
+                        "on-background": "#0b1c30",
+                        "inverse-surface": "#213145",
+                        "on-surface": "#0b1c30",
+                        "surface-container-high": "#dce9ff",
+                        "on-primary-fixed-variant": "#004881",
+                        "outline-variant": "#c0c7d4",
+                        "inverse-primary": "#a2c9ff",
+                        "tertiary-container": "#946f00",
+                        "on-primary-container": "#fdfcff",
+                        "on-error": "#ffffff",
+                        "error": "#ba1a1a",
+                        "on-secondary": "#ffffff",
+                        "tertiary-fixed": "#ffdf9e",
+                        "on-secondary-fixed": "#002204",
+                        "inverse-on-surface": "#eaf1ff",
+                        "on-tertiary-fixed-variant": "#5b4300",
+                        "outline": "#707783",
+                        "background": "#f8f9ff",
+                        "error-container": "#ffdad6",
+                        "surface-container-low": "#eff4ff",
+                        "on-error-container": "#93000a",
+                        "surface-container": "#e5eeff",
+                        "on-secondary-container": "#0c7521",
+                        "surface-tint": "#0060a8",
+                        "on-primary": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed": "#001c38",
+                        "secondary": "#006e1c",
+                        "primary-container": "#0077ce"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "base": "4px",
+                        "margin-desktop": "48px",
+                        "gutter": "16px",
+                        "xs": "4px",
+                        "lg": "24px",
+                        "sm": "8px",
+                        "margin-mobile": "16px",
+                        "xl": "32px",
+                        "md": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "label-md": ["Inter"],
+                        "label-lg": ["Inter"],
+                        "display-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-sm": ["16px", {"lineHeight": "24px", "fontWeight": "600"}],
+                        "label-sm": ["11px", {"lineHeight": "16px", "letterSpacing": "0.5px", "fontWeight": "500"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.5px", "fontWeight": "500"}],
+                        "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.1px", "fontWeight": "500"}],
+                        "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-body-md text-on-surface overflow-hidden h-screen w-screen flex flex-col md:flex-row">
+<!-- Top App Bar (Mobile Only) -->
+<header class="md:hidden flex justify-between items-center w-full px-margin-mobile h-16 bg-surface dark:bg-on-background shadow-sm dark:shadow-none z-40 fixed top-0 left-0">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary dark:text-primary-fixed-dim" style="font-variation-settings: 'FILL' 1;">directions_bus</span>
+<h1 class="font-display-lg text-headline-sm text-primary dark:text-primary-fixed-dim tracking-tight">AbangBus</h1>
+</div>
+<button class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined text-on-surface-variant">search</span>
+</button>
+</header>
+<!-- Side Navigation (Desktop) -->
+<nav class="hidden md:flex flex-col h-full sticky left-0 top-0 overflow-y-auto bg-surface-container-low dark:bg-inverse-surface border-r border-outline-variant dark:border-outline h-full w-80 rounded-r-xl z-50">
+<div class="p-6 mb-4">
+<div class="flex items-center gap-3 mb-8">
+<span class="material-symbols-outlined text-primary text-3xl" style="font-variation-settings: 'FILL' 1;">directions_bus</span>
+<span class="font-headline-lg text-headline-lg text-primary">AbangBus</span>
+</div>
+<div class="flex items-center gap-3 p-3 bg-surface-container rounded-xl">
+<img class="w-12 h-12 rounded-full object-cover" data-alt="A professional headshot of a transit system administrator, Michael Scott, with a friendly expression. He is wearing a modern blue corporate polo shirt. The background is a blurred office environment with transit maps on the wall. High-quality lighting, soft shadows, clean corporate photography style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD9oQm6MLA1fokCHJ_oGtLOjTqZmm7iyDr-lSK6VcLAByCKdMgryuzAtBGO4BzNBYuWDainEvjF9W7C4tjKNoe4QTD20pL0T3JcWpjY1VibZ0bb72W-l6ffjY_36NoFBHWfOD-fn2ALCTq0L3AFr0i5cSRuhijPEx9TZuubrkr-KgwoWdG273eqVAkTjYdIgedzlQZfb_1WtmSNhix_FR3u5Xi7ONve33L0dGzBOCWY9HTUfUch_F6P03q-Dcbrj6pYK12iclPwuO1T"/>
+<div>
+<h3 class="font-headline-sm text-label-lg text-on-surface">Admin Portal</h3>
+<p class="font-label-md text-label-sm text-on-surface-variant">System Controller</p>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-1 px-2">
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-3 hover:bg-surface-container-high dark:hover:bg-surface-variant rounded-full transition-all flex items-center gap-4" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-lg text-label-lg">Dashboard</span>
+</a>
+<a class="bg-secondary-container dark:bg-secondary text-on-secondary-container dark:text-on-secondary font-bold rounded-full mx-2 px-4 py-3 flex items-center gap-4" href="#">
+<span class="material-symbols-outlined filled-icon">map</span>
+<span class="font-label-lg text-label-lg">Live Map</span>
+</a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-3 hover:bg-surface-container-high dark:hover:bg-surface-variant rounded-full transition-all flex items-center gap-4" href="#">
+<span class="material-symbols-outlined">directions_bus</span>
+<span class="font-label-lg text-label-lg">Fleet Mgmt</span>
+</a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-3 hover:bg-surface-container-high dark:hover:bg-surface-variant rounded-full transition-all flex items-center gap-4" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="font-label-lg text-label-lg">Drivers</span>
+</a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-3 hover:bg-surface-container-high dark:hover:bg-surface-variant rounded-full transition-all flex items-center gap-4" href="#">
+<span class="material-symbols-outlined">route</span>
+<span class="font-label-lg text-label-lg">Route Analytics</span>
+</a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-3 hover:bg-surface-container-high dark:hover:bg-surface-variant rounded-full transition-all flex items-center gap-4 mt-auto mb-4" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-lg text-label-lg">System Logs</span>
+</a>
+</div>
+</nav>
+<!-- Main Map Canvas -->
+<main class="flex-1 relative overflow-hidden h-full">
+<!-- Map Background -->
+<div class="absolute inset-0 bg-[#E0E5EB] z-0" data-location="Kuala Lumpur" style="">
+<div class="w-full h-full bg-cover bg-center opacity-80 mix-blend-multiply" data-alt="A detailed map of a major metropolitan area with clean, modern styling. High contrast street levels, green parks, blue waterways, and prominent transit route lines. The aesthetic is professional and functional, using a soft color palette of light grays and cool blues, reminiscent of modern navigation apps." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuD2uIQXPZYpc0vtSS1riVvjFFXuIPp_7Vok0L8FOZgSQubAZWFoM8W8xJofVVAgPzt9ox90u7pX9nC-s0HQBtOYw9-O0ztZzFiRXUdi0AxjJso5GqOeMct8dgXzZwVuFjNReCC86fV1TIEIal_bwKH5dWdwJHfWQqygPmaL--cDSDyqSGSLCeR2s_m6xzU35UYm7fdaGOfB2OiW8zhPsPB46CVdYhnamXQXM50BckHXih9bS8NCkqWattC4Eb4gOfQYzDQaPc74mcd2')"></div>
+</div>
+<!-- Map Overlays / Gradients -->
+<div class="absolute inset-0 pointer-events-none map-gradient-overlay z-10"></div>
+<!-- Map Markers (Simulated) -->
+<div class="absolute inset-0 z-20 pointer-events-none">
+<!-- User Blue Dot -->
+<div class="absolute top-[45%] left-[48%] pointer-events-auto">
+<div class="relative flex items-center justify-center">
+<div class="absolute w-12 h-12 bg-primary/20 rounded-full pulse-animation"></div>
+<div class="w-6 h-6 bg-white rounded-full shadow-lg flex items-center justify-center">
+<div class="w-4 h-4 bg-primary rounded-full border-2 border-white"></div>
+</div>
+</div>
+</div>
+<!-- Terminal Marker -->
+<div class="absolute top-[30%] left-[60%] pointer-events-auto cursor-pointer">
+<div class="bg-surface-container-highest p-2 rounded-xl shadow-md border border-white flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-xl">location_on</span>
+<span class="font-label-md text-on-surface">KL Sentral</span>
+</div>
+</div>
+<!-- Bus Markers -->
+<!-- Near (Green) -->
+<div class="absolute top-[48%] left-[40%] pointer-events-auto cursor-pointer transform -translate-x-1/2 -translate-y-1/2 hover:scale-110 transition-transform" onclick="toggleBottomSheet()">
+<div class="bg-secondary p-1.5 rounded-full shadow-lg border-2 border-white flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-sm filled-icon">directions_bus</span>
+</div>
+<div class="mt-1 bg-white px-2 py-0.5 rounded-full shadow-sm text-[10px] font-bold text-secondary text-center">#102</div>
+</div>
+<!-- Moderate (Orange) -->
+<div class="absolute top-[55%] left-[65%] pointer-events-auto cursor-pointer">
+<div class="bg-tertiary-container p-1.5 rounded-full shadow-lg border-2 border-white flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-sm filled-icon">directions_bus</span>
+</div>
+<div class="mt-1 bg-white px-2 py-0.5 rounded-full shadow-sm text-[10px] font-bold text-tertiary-container text-center">#405</div>
+</div>
+<!-- Far (Red) -->
+<div class="absolute top-[20%] left-[30%] pointer-events-auto cursor-pointer">
+<div class="bg-error p-1.5 rounded-full shadow-lg border-2 border-white flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-sm filled-icon">directions_bus</span>
+</div>
+<div class="mt-1 bg-white px-2 py-0.5 rounded-full shadow-sm text-[10px] font-bold text-error text-center">#088</div>
+</div>
+</div>
+<!-- Floating Action Buttons -->
+<div class="absolute right-margin-mobile bottom-32 md:bottom-12 z-30 flex flex-col gap-4">
+<button class="w-14 h-14 bg-surface-container-lowest text-primary rounded-2xl shadow-lg flex items-center justify-center hover:bg-surface-container transition-all active:scale-95">
+<span class="material-symbols-outlined">layers</span>
+</button>
+<button class="w-14 h-14 bg-primary text-on-primary rounded-2xl shadow-lg flex items-center justify-center hover:opacity-90 transition-all active:scale-95">
+<span class="material-symbols-outlined filled-icon">my_location</span>
+</button>
+</div>
+<!-- Route Details Toggle (Top Right) -->
+<div class="absolute top-20 md:top-6 right-margin-mobile z-30">
+<button class="bg-white/90 backdrop-blur-md px-6 py-3 rounded-full shadow-md flex items-center gap-3 border border-white hover:bg-white transition-all">
+<span class="material-symbols-outlined text-primary">route</span>
+<span class="font-label-lg text-on-surface">Route Details</span>
+<span class="material-symbols-outlined text-outline-variant">keyboard_arrow_down</span>
+</button>
+</div>
+<!-- Bottom Sheet (Bus Selection) -->
+<div class="bottom-sheet absolute bottom-0 left-0 right-0 z-40 bg-white rounded-t-[24px] shadow-[0px_-8px_24px_rgba(0,0,0,0.08)] transform translate-y-0 transition-transform" id="bus-bottom-sheet">
+<div class="max-w-xl mx-auto px-margin-mobile pt-3 pb-8 md:pb-12">
+<div class="w-12 h-1.5 bg-outline-variant/30 rounded-full mx-auto mb-6 cursor-grab active:cursor-grabbing"></div>
+<div class="relative overflow-hidden rounded-2xl p-6 bg-surface-container-low mb-6">
+<div class="bus-card-status bg-secondary"></div>
+<div class="flex justify-between items-start mb-4">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-secondary/10 rounded-xl flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary text-2xl filled-icon">directions_bus</span>
+</div>
+<div>
+<h2 class="font-headline-md text-headline-md text-on-surface">Bus #102</h2>
+<p class="font-body-md text-on-surface-variant">Downtown Express</p>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<div class="flex items-center gap-1.5 px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full mb-1">
+<span class="material-symbols-outlined text-sm filled-icon">verified</span>
+<span class="font-label-md">94% Verified</span>
+</div>
+<span class="font-label-sm text-outline">Community Confidence</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4 mb-6">
+<div class="bg-white p-4 rounded-xl shadow-sm flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">schedule</span>
+<div>
+<p class="font-label-sm text-outline">ETA</p>
+<p class="font-headline-sm text-primary">5 mins</p>
+</div>
+</div>
+<div class="bg-white p-4 rounded-xl shadow-sm flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">distance</span>
+<div>
+<p class="font-label-sm text-outline">Distance</p>
+<p class="font-headline-sm text-primary">1.2km</p>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-4 py-4 border-t border-outline-variant/30">
+<img class="w-10 h-10 rounded-full object-cover" data-alt="A portrait of a male bus driver, Michael Scott, with a kind and reliable look, wearing a professional gray transit uniform with a collar. Soft sunlight highlights his features. The background is a clean bus interior with light blue and white surfaces. Modern digital portraiture style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAE4CDNJn27azOFoMsxryXd950XB1AWSVRP3ePTHi50h5cv8nn4VtOCHzQ_4CjyeHkwAR0GIE12uIuNG4z9r44A1ON3e1tIGvpQf03iilXhiHX4Nc36bfKSu1_weinvpHAoLYIjnvNy1SwnnIQaq97iEFa6DmP1CtMYFjY4DVSrQ1Sqt_-LL7_fgmKrem61O45TqYVUfzSh5PtpKkRkyHlgo9yD78C4-WxbIJz7O0A1DFQOl4FfBfiJPtSrD38gMC-IRGvjCDEGxhdX"/>
+<div class="flex-1">
+<p class="font-label-sm text-outline">Driver</p>
+<p class="font-label-lg text-on-surface">Michael Scott</p>
+</div>
+<div class="flex gap-2">
+<button class="w-10 h-10 rounded-full border border-outline-variant flex items-center justify-center hover:bg-surface transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant text-sm">chat_bubble</span>
+</button>
+<button class="w-10 h-10 rounded-full border border-outline-variant flex items-center justify-center hover:bg-surface transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant text-sm">star</span>
+</button>
+</div>
+</div>
+</div>
+<div class="flex gap-4">
+<button class="flex-1 bg-primary text-on-primary py-4 rounded-full font-label-lg shadow-md hover:bg-opacity-90 transition-all active:scale-95">
+                        Follow Bus
+                    </button>
+<button class="flex-1 border-2 border-outline-variant text-on-surface-variant py-4 rounded-full font-label-lg hover:bg-surface transition-all active:scale-95">
+                        Report Wrong Location
+                    </button>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation (Mobile) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-3 bg-surface dark:bg-on-background shadow-[0px_-4px_20px_rgba(0,0,0,0.05)] rounded-t-xl">
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-5 py-1 hover:bg-surface-container-high dark:hover:bg-inverse-surface rounded-full transition-all active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label-md text-label-md">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-primary-container dark:bg-primary-fixed text-on-primary-container dark:text-on-primary-fixed rounded-full px-5 py-1 transition-all active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined filled-icon">map</span>
+<span class="font-label-md text-label-md">Map</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-5 py-1 hover:bg-surface-container-high dark:hover:bg-inverse-surface rounded-full transition-all active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">emergency_share</span>
+<span class="font-label-md text-label-md">Reports</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-5 py-1 hover:bg-surface-container-high dark:hover:bg-inverse-surface rounded-full transition-all active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-md text-label-md">Profile</span>
+</a>
+</nav>
+<script>
+        let isSheetOpen = true;
+        const sheet = document.getElementById('bus-bottom-sheet');
+
+        function toggleBottomSheet() {
+            isSheetOpen = !isSheetOpen;
+            if (isSheetOpen) {
+                sheet.style.transform = 'translateY(0)';
+            } else {
+                sheet.style.transform = 'translateY(calc(100% - 60px))';
+            }
+        }
+
+        // Handle micro-interaction for markers
+        document.querySelectorAll('.cursor-pointer').forEach(marker => {
+            marker.addEventListener('click', () => {
+                if (!isSheetOpen) toggleBottomSheet();
+            });
+        });
+
+        // Basic drag gesture simulation for bottom sheet
+        let startY = 0;
+        sheet.addEventListener('touchstart', (e) => {
+            startY = e.touches[0].clientY;
+        });
+
+        sheet.addEventListener('touchend', (e) => {
+            const endY = e.changedTouches[0].clientY;
+            if (startY - endY > 50 && !isSheetOpen) {
+                toggleBottomSheet();
+            } else if (endY - startY > 50 && isSheetOpen) {
+                toggleBottomSheet();
+            }
+        });
+    </script>
+</body></html>

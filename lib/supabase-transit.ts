@@ -1,4 +1,7 @@
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { Platform } from 'react-native';
+import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import {
   estimateProgressAlongRoute,
   routes as localRoutes,
@@ -6,6 +9,7 @@ import {
   type RouteDefinition,
   type TripSnapshot,
 } from '@/lib/abangbus-data';
+import { normalizeBusCode, normalizeEmail } from '@/lib/input-validation';
 
 export type FavoriteStopRecord = {
   stopId: string;
@@ -16,6 +20,15 @@ export type FavoriteStopRecord = {
   color: string;
   latitude: number;
   longitude: number;
+};
+
+export type AppRole = 'passenger' | 'driver' | 'admin';
+
+export type UserProfile = {
+  id: string;
+  role: AppRole;
+  displayName: string | null;
+  phone: string | null;
 };
 
 type SupabaseRouteRow = {
@@ -60,6 +73,33 @@ type SupabaseLivePositionRow = {
 
 export function isRemoteBackendReady() {
   return isSupabaseConfigured && Boolean(supabase);
+}
+
+export async function loadCurrentProfile(userId: string): Promise<UserProfile | null> {
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, role, display_name, phone')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return {
+    id: data.id,
+    role: data.role as AppRole,
+    displayName: data.display_name,
+    phone: data.phone,
+  };
 }
 
 export function parseSupabasePoint(value: unknown): LatLng {
@@ -190,21 +230,15 @@ export async function loadActiveTrips(routes: RouteDefinition[] = localRoutes): 
     .filter(Boolean) as TripSnapshot[];
 }
 
-export async function createRemoteTrip(params: { routeId: string; busCode: string; driverId: string }) {
+export async function createRemoteTrip(params: { routeId: string; busCode: string }) {
   if (!supabase) {
     throw new Error('Supabase is not configured.');
   }
 
-  const { data, error } = await supabase
-    .from('trips')
-    .insert({
-      route_id: params.routeId,
-      driver_id: params.driverId,
-      bus_code: params.busCode,
-      status: 'active',
-    })
-    .select('id, route_id, bus_code, driver_id, status, started_at')
-    .single();
+  const { data, error } = await supabase.rpc('start_trip', {
+    p_route_id: params.routeId,
+    p_bus_code: normalizeBusCode(params.busCode),
+  });
 
   if (error || !data) {
     throw error ?? new Error('Unable to create trip.');
@@ -346,9 +380,67 @@ export async function signInWithPassword(email: string, password: string) {
   }
 
   return supabase.auth.signInWithPassword({
-    email: email.trim(),
+    email: normalizeEmail(email),
     password,
   });
+}
+
+export async function signInWithGoogle() {
+  if (!supabase) {
+    throw new Error('Supabase is not configured.');
+  }
+
+  const redirectTo = Platform.OS === 'web' && typeof window !== 'undefined'
+    ? `${window.location.origin}/login`
+    : Linking.createURL('/login');
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo,
+      skipBrowserRedirect: Platform.OS !== 'web',
+    },
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  if (Platform.OS === 'web') {
+    return;
+  }
+
+  if (!data.url) {
+    throw new Error('Google did not return a sign-in URL.');
+  }
+
+  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+  if (result.type !== 'success') {
+    throw new Error('Google sign-in was cancelled.');
+  }
+
+  const code = getOAuthValue(result.url, 'code');
+  if (code) {
+    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+    if (exchangeError) throw exchangeError;
+    return;
+  }
+
+  const accessToken = getOAuthValue(result.url, 'access_token');
+  const refreshToken = getOAuthValue(result.url, 'refresh_token');
+  if (!accessToken || !refreshToken) {
+    throw new Error('Google sign-in returned without a Supabase session. Check the redirect URL configuration.');
+  }
+
+  const { error: sessionError } = await supabase.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+  if (sessionError) throw sessionError;
+}
+
+function getOAuthValue(url: string, key: string) {
+  const match = url.match(new RegExp(`[?#&]${key}=([^&]+)`));
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 export async function signUpWithPassword(email: string, password: string, displayName: string) {
@@ -357,7 +449,7 @@ export async function signUpWithPassword(email: string, password: string, displa
   }
 
   return supabase.auth.signUp({
-    email: email.trim(),
+    email: normalizeEmail(email),
     password,
     options: {
       data: {
@@ -365,6 +457,20 @@ export async function signUpWithPassword(email: string, password: string, displa
       },
     },
   });
+}
+
+export async function requestPasswordReset(email: string, redirectTo: string) {
+  if (!supabase) {
+    throw new Error('Supabase is not configured.');
+  }
+  return supabase.auth.resetPasswordForEmail(normalizeEmail(email), { redirectTo });
+}
+
+export async function updatePassword(password: string) {
+  if (!supabase) {
+    throw new Error('Supabase is not configured.');
+  }
+  return supabase.auth.updateUser({ password });
 }
 
 export async function signOut() {

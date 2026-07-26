@@ -1,6 +1,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+import authStorage from '@/lib/auth-storage';
 
 const supabaseUrl =
   process.env.EXPO_PUBLIC_SUPABASE_URL ||
@@ -14,5 +16,12 @@ const supabaseAnonKey =
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
 export const supabase = isSupabaseConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        storage: authStorage,
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: Platform.OS === 'web',
+      },
+    })
   : null;
