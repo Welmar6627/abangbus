@@ -1,18 +1,26 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import * as Location from 'expo-location';
-import RouteMap from '@/components/RouteMap';
-import { defaultRouteId, estimateEtaMinutes, getRouteById, routes, type TripSnapshot } from '@/lib/abangbus-data';
+import { useEffect, useState } from 'react';
 import {
-  completeRemoteTrip,
-  createRemoteTrip,
-  isRemoteBackendReady,
-  signInWithPassword,
-  signOut,
-  signUpWithPassword,
-  upsertRemotePosition,
-} from '@/lib/supabase-transit';
-import { useSupabaseSession } from '@/lib/use-session';
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
+import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppBrand } from '@/components/AppBrand';
+import RouteMap from '@/components/RouteMap';
+import {
+  estimateEtaMinutes,
+  routes as localRoutes,
+  type RouteDefinition,
+  type TripSnapshot,
+} from '@/lib/abangbus-data';
 import {
   endDemoTrip,
   getTrips,
@@ -22,749 +30,375 @@ import {
   subscribeToTrips,
   updateTripLocation,
 } from '@/lib/demo-tracker';
+import {
+  completeRemoteTrip,
+  createRemoteTrip,
+  isRemoteBackendReady,
+  loadCurrentProfile,
+  loadPilotRoutes,
+  signOut,
+  upsertRemotePosition,
+  type UserProfile,
+} from '@/lib/supabase-transit';
+import { useSupabaseSession } from '@/lib/use-session';
+import { colors, fonts } from '@/lib/theme';
+import { normalizeBusCode, validateBusCode } from '@/lib/input-validation';
 
 export default function DriverScreen() {
+  const router = useRouter();
   const [session] = useSupabaseSession();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [selectedRouteId, setSelectedRouteId] = useState(defaultRouteId);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [checkingAccess, setCheckingAccess] = useState(true);
+  const [routeList, setRouteList] = useState<RouteDefinition[]>(localRoutes);
+  const [selectedRouteId, setSelectedRouteId] = useState(localRoutes[0].id);
   const [busCode, setBusCode] = useState('AB-142');
-  const [driverName, setDriverName] = useState('Kuya Ben');
   const [activeTrips, setActiveTrips] = useState(getTrips());
-  const [activeTripId, setActiveTripId] = useState<string | null>(null);
   const [currentTrip, setCurrentTrip] = useState<TripSnapshot | null>(null);
-  const [activeWatcher, setActiveWatcher] = useState<Location.LocationSubscription | null>(null);
-  const [trackingLabel, setTrackingLabel] = useState('Ready to start');
-  const [permissionLabel, setPermissionLabel] = useState('Location not requested yet');
-  const [motionFallbackTrip, setMotionFallbackTrip] = useState<string | null>(null);
-  const [busyMessage, setBusyMessage] = useState<string | null>(null);
+  const [watcher, setWatcher] = useState<Location.LocationSubscription | null>(null);
+  const [permissionLabel, setPermissionLabel] = useState('GPS permission will be requested when you start.');
+  const [statusLabel, setStatusLabel] = useState('Ready for dispatch');
+  const [busy, setBusy] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const backendReady = isRemoteBackendReady();
 
   useEffect(() => subscribeToTrips(setActiveTrips), []);
 
-  const selectedRoute = useMemo(() => getRouteById(selectedRouteId), [selectedRouteId]);
-  const activeTrip = currentTrip;
-  const activeTripRoute = activeTrip ? getRouteById(activeTrip.routeId) : selectedRoute;
-  const backendReady = isRemoteBackendReady();
-  const usingRemote = backendReady && Boolean(session);
+  useEffect(() => {
+    return () => watcher?.remove();
+  }, [watcher]);
 
   useEffect(() => {
-    if (!motionFallbackTrip) {
+    let active = true;
+    const prepare = async () => {
+      setCheckingAccess(true);
+      try {
+        const routes = backendReady ? await loadPilotRoutes() : localRoutes;
+        if (!active) return;
+        setRouteList(routes);
+        if (routes[0]) setSelectedRouteId(routes[0].id);
+
+        if (backendReady && session) {
+          const nextProfile = await loadCurrentProfile(session.user.id);
+          if (!active) return;
+          setProfile(nextProfile);
+        } else {
+          setProfile(null);
+        }
+      } catch (error) {
+        if (active) setErrorMessage(error instanceof Error ? error.message : 'Unable to verify driver access.');
+      } finally {
+        if (active) setCheckingAccess(false);
+      }
+    };
+    void prepare();
+    return () => { active = false; };
+  }, [backendReady, session]);
+
+  const selectedRoute = routeList.find((route) => route.id === selectedRouteId) ?? routeList[0] ?? localRoutes[0];
+  const approvedDriver = profile?.role === 'driver' || profile?.role === 'admin';
+  const driverName = profile?.displayName || session?.user.email?.split('@')[0] || 'Demo driver';
+  const routeTrips = currentTrip
+    ? [currentTrip, ...activeTrips.filter((trip) => trip.id !== currentTrip.id && trip.routeId === selectedRoute.id)]
+    : activeTrips.filter((trip) => trip.routeId === selectedRoute.id);
+
+  const startTrip = async () => {
+    const busCodeError = validateBusCode(busCode);
+    if (busCodeError) {
+      setErrorMessage(busCodeError);
+      return;
+    }
+    if (backendReady && (!session || !approvedDriver)) {
+      setErrorMessage('This account is not approved for driver dispatch.');
       return;
     }
 
-    const timer = setTimeout(() => {
-      setTrackingLabel('Demo motion is keeping the trip alive.');
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, [motionFallbackTrip]);
-
-  const handleStartTrip = async () => {
-    if (!busCode.trim()) {
-      setTrackingLabel('Add a bus code first.');
-      return;
-    }
-
-    setBusyMessage(null);
-    let remoteTripId: string | null = null;
-    let demoTripId: string | null = null;
+    setBusy(true);
+    setErrorMessage(null);
+    setStatusLabel('Checking GPS...');
+    let createdTripId: string | null = null;
 
     try {
-      if (usingRemote && session) {
-        setTrackingLabel('Checking location permission...');
-
-        const permission = await Location.requestForegroundPermissionsAsync();
-        if (permission.status !== 'granted') {
-          setPermissionLabel('Location denied, switching to demo motion.');
-          setTrackingLabel('Trip is live using the local demo lane.');
-          const demoTrip = startDemoTrip({
-            routeId: selectedRouteId,
-            busCode,
-            driverName,
-            motionEnabled: false,
-          });
-          demoTripId = demoTrip.id;
-          setActiveTripId(demoTrip.id);
-          setCurrentTrip(demoTrip);
-          resumeTripMotionForTrip(demoTrip.id);
-          setMotionFallbackTrip(demoTrip.id);
-          return;
-        }
-
-        const remoteTrip = await createRemoteTrip({
-          routeId: selectedRouteId,
-          busCode: busCode.trim().toUpperCase(),
-          driverId: session.user.id,
-        });
-        remoteTripId = remoteTrip.id;
-
-        setActiveTripId(remoteTrip.id);
-        setCurrentTrip({
-          id: remoteTrip.id,
-          routeId: remoteTrip.route_id,
-          busCode: remoteTrip.bus_code ?? busCode.trim().toUpperCase(),
-          driverName,
-          startedAt: remoteTrip.started_at,
-          lastUpdatedAt: remoteTrip.started_at,
-          status: 'active',
-          source: 'driver',
-          isMock: false,
-          speedKph: 0,
-          accuracyM: 0,
-          bearing: 0,
-          progress: 0,
-          position: selectedRoute.center,
-        });
-
-        setPermissionLabel('Foreground location granted.');
-        setTrackingLabel('GPS sharing is live while the trip is active.');
-        setMotionFallbackTrip(null);
-
-        const watcher = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.High,
-            timeInterval: 8000,
-            distanceInterval: 8,
-          },
-          async (location) => {
-            const nextLocation = {
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
-            };
-
-            await upsertRemotePosition({
-              tripId: remoteTrip.id,
-              location: nextLocation,
-              bearing: location.coords.heading ?? null,
-              speedMps: location.coords.speed ?? null,
-              accuracyM: location.coords.accuracy ?? null,
-              source: 'driver',
-              isMock: Boolean((location as Location.LocationObject & { mocked?: boolean }).mocked),
-            });
-
-            setCurrentTrip((trip) =>
-              trip && trip.id === remoteTrip.id
-                ? {
-                    ...trip,
-                    position: nextLocation,
-                    lastUpdatedAt: new Date().toISOString(),
-                  }
-                : trip,
-            );
-          },
-        );
-
-        setActiveWatcher(watcher);
-        setBusyMessage(null);
-        return;
-      }
-
-      const trip = startDemoTrip({
-        routeId: selectedRouteId,
-        busCode,
-        driverName,
-        motionEnabled: false,
-      });
-      demoTripId = trip.id;
-
-      setActiveTripId(trip.id);
-      setCurrentTrip(trip);
-      setTrackingLabel('Checking location permission...');
-
-      if (Platform.OS === 'web') {
-        setPermissionLabel('Web preview uses demo motion.');
-        setTrackingLabel('Demo motion is sharing the trip on the rider map.');
-        resumeTripMotionForTrip(trip.id);
-        setMotionFallbackTrip(trip.id);
-        return;
+      if (Platform.OS !== 'web') {
+        const servicesEnabled = await Location.hasServicesEnabledAsync();
+        if (!servicesEnabled) throw new Error('Turn on device location services before starting the trip.');
       }
 
       const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status === 'granted') {
-        setPermissionLabel('Foreground location granted.');
-        setTrackingLabel('GPS sharing is live while the trip is active.');
-        setMotionFallbackTrip(null);
-        pauseTripMotion(trip.id);
+      if (permission.status !== 'granted' && backendReady) {
+        throw new Error('Location permission is required for a live driver trip. No trip was started.');
+      }
 
-        const watcher = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.High,
-            timeInterval: 8000,
-            distanceInterval: 8,
-          },
+      if (backendReady && session) {
+        const initial = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        const remoteTrip = await createRemoteTrip({
+          routeId: selectedRoute.id,
+          busCode,
+        });
+        createdTripId = remoteTrip.id;
+        const initialPosition = { latitude: initial.coords.latitude, longitude: initial.coords.longitude };
+        await upsertRemotePosition({
+          tripId: remoteTrip.id,
+          location: initialPosition,
+          bearing: initial.coords.heading,
+          speedMps: initial.coords.speed,
+          accuracyM: initial.coords.accuracy,
+        });
+
+        const trip: TripSnapshot = {
+          id: remoteTrip.id,
+          routeId: remoteTrip.route_id,
+          busCode: remoteTrip.bus_code ?? normalizeBusCode(busCode),
+          driverName,
+          startedAt: remoteTrip.started_at,
+          lastUpdatedAt: new Date().toISOString(),
+          status: 'active',
+          source: 'driver',
+          isMock: false,
+          speedKph: Math.max(0, (initial.coords.speed ?? 0) * 3.6),
+          accuracyM: initial.coords.accuracy ?? 0,
+          bearing: initial.coords.heading ?? 0,
+          progress: 0,
+          position: initialPosition,
+        };
+        setCurrentTrip(trip);
+
+        const subscription = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.High, timeInterval: 8000, distanceInterval: 8 },
           (location) => {
-            updateTripLocation(
-              trip.id,
-              {
-                latitude: location.coords.latitude,
-                longitude: location.coords.longitude,
-              },
-              {
-                accuracyM: location.coords.accuracy ?? 12,
-                speedKph: Math.max(12, Math.round(((location.coords.speed ?? 0) * 3.6 || 18) * 10) / 10),
-                bearing: location.coords.heading ?? 0,
-                isMock: Boolean((location as Location.LocationObject & { mocked?: boolean }).mocked),
-              },
-            );
-            setCurrentTrip((current) =>
-              current && current.id === trip.id
-                ? {
-                    ...current,
-                    position: {
-                      latitude: location.coords.latitude,
-                      longitude: location.coords.longitude,
-                    },
-                    lastUpdatedAt: new Date().toISOString(),
-                  }
-                : current,
-            );
+            const nextPosition = { latitude: location.coords.latitude, longitude: location.coords.longitude };
+            void upsertRemotePosition({
+              tripId: remoteTrip.id,
+              location: nextPosition,
+              bearing: location.coords.heading,
+              speedMps: location.coords.speed,
+              accuracyM: location.coords.accuracy,
+              isMock: Boolean((location as Location.LocationObject & { mocked?: boolean }).mocked),
+            }).catch(() => setErrorMessage('A GPS update failed. The app will retry on the next reading.'));
+            setCurrentTrip((current) => current?.id === remoteTrip.id ? {
+              ...current,
+              position: nextPosition,
+              speedKph: Math.max(0, (location.coords.speed ?? 0) * 3.6),
+              accuracyM: location.coords.accuracy ?? 0,
+              bearing: location.coords.heading ?? 0,
+              lastUpdatedAt: new Date().toISOString(),
+            } : current);
           },
         );
-
-        setActiveWatcher(watcher);
+        setWatcher(subscription);
+        setPermissionLabel('High-accuracy foreground GPS is active.');
+        setStatusLabel('Live and visible to riders');
         return;
       }
 
-      setPermissionLabel('Location denied, switching to demo motion.');
-      setTrackingLabel('Trip is live using the local demo lane.');
-      pauseTripMotion(trip.id);
-      resumeTripMotionForTrip(trip.id);
-      setMotionFallbackTrip(trip.id);
+      const trip = startDemoTrip({ routeId: selectedRoute.id, busCode, driverName, motionEnabled: false });
+      createdTripId = trip.id;
+      setCurrentTrip(trip);
+      if (Platform.OS === 'web' || permission.status !== 'granted') {
+        resumeTripMotionForTrip(trip.id);
+        setPermissionLabel('Demo route motion is active.');
+      } else {
+        pauseTripMotion(trip.id);
+        const subscription = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.High, timeInterval: 8000, distanceInterval: 8 },
+          (location) => {
+            const nextPosition = { latitude: location.coords.latitude, longitude: location.coords.longitude };
+            updateTripLocation(trip.id, nextPosition, {
+              accuracyM: location.coords.accuracy ?? 0,
+              speedKph: Math.max(0, (location.coords.speed ?? 0) * 3.6),
+              bearing: location.coords.heading ?? 0,
+            });
+            setCurrentTrip((current) => current?.id === trip.id ? { ...current, position: nextPosition, lastUpdatedAt: new Date().toISOString() } : current);
+          },
+        );
+        setWatcher(subscription);
+        setPermissionLabel('Local GPS preview is active.');
+      }
+      setStatusLabel('Demo trip active');
     } catch (error) {
-      if (remoteTripId) {
-        await completeRemoteTrip(remoteTripId).catch(() => undefined);
+      if (createdTripId) {
+        if (backendReady) await completeRemoteTrip(createdTripId).catch(() => undefined);
+        else endDemoTrip(createdTripId);
       }
-      if (demoTripId) {
-        endDemoTrip(demoTripId);
-      }
-      const message = error instanceof Error ? error.message : 'Unable to start the trip.';
-      setBusyMessage(message);
-      setTrackingLabel('Trip start failed.');
+      setStatusLabel('Ready for dispatch');
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to start this trip.');
+    } finally {
+      setBusy(false);
     }
   };
 
-  const handleEndTrip = async () => {
-    if (activeWatcher) {
-      activeWatcher.remove();
-      setActiveWatcher(null);
-    }
-
-    if (usingRemote && activeTripId && currentTrip?.source === 'driver') {
-      await completeRemoteTrip(activeTripId);
-    } else if (activeTripId) {
-      endDemoTrip(activeTripId);
-    }
-
-    setActiveTripId(null);
-    setCurrentTrip(null);
-    setTrackingLabel('Trip ended.');
-    setPermissionLabel('Location sharing stopped.');
-    setMotionFallbackTrip(null);
-  };
-
-  const handleSignIn = async () => {
-    setBusyMessage(null);
+  const endTrip = async () => {
+    if (!currentTrip) return;
+    setBusy(true);
+    setErrorMessage(null);
     try {
-      const { error } = await signInWithPassword(email, password);
-      if (error) {
-        setBusyMessage(error.message);
-      }
+      watcher?.remove();
+      setWatcher(null);
+      if (backendReady && currentTrip.source === 'driver') await completeRemoteTrip(currentTrip.id);
+      else endDemoTrip(currentTrip.id);
+      setCurrentTrip(null);
+      setStatusLabel('Trip completed');
+      setPermissionLabel('Location sharing has stopped.');
     } catch (error) {
-      setBusyMessage(error instanceof Error ? error.message : 'Could not sign in.');
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to end the trip.');
+    } finally {
+      setBusy(false);
     }
   };
 
-  const handleSignUp = async () => {
-    setBusyMessage(null);
-    try {
-      const { error } = await signUpWithPassword(email, password, displayName);
-      if (error) {
-        setBusyMessage(error.message);
-      }
-    } catch (error) {
-      setBusyMessage(error instanceof Error ? error.message : 'Could not sign up.');
-    }
-  };
+  if (checkingAccess) {
+    return <CenteredState icon="shield-checkmark-outline" title="Verifying driver access" body="Checking your assigned role and route data." loading />;
+  }
 
-  const handleLogout = async () => {
-    await signOut();
-  };
+  if (backendReady && !session) {
+    return <CenteredState icon="log-in-outline" title="Driver sign-in required" body="Use the approved operator account provided by your dispatcher." action="Go to sign in" onPress={() => router.replace('/login')} />;
+  }
 
-  const activeTripMeta = activeTrip
-    ? {
-        route: activeTripRoute,
-        etaMinutes: estimateEtaMinutes(activeTripRoute, activeTrip.progress, activeTrip.speedKph),
-      }
-    : null;
-  const driverTrips = currentTrip
-    ? [currentTrip, ...activeTrips.filter((trip) => trip.id !== currentTrip.id && trip.routeId === selectedRouteId)]
-    : activeTrips.filter((trip) => trip.routeId === selectedRouteId);
+  if (backendReady && !approvedDriver) {
+    return <CenteredState icon="lock-closed-outline" title="Driver access pending" body="This is a rider account. Ask an AbangBus administrator to approve it as a driver before dispatch." action="Back to rider app" onPress={() => router.replace('/(rider)/home')} secondaryAction="Sign out" onSecondaryPress={() => void signOut().then(() => router.replace('/login'))} />;
+  }
+
+  const eta = currentTrip ? estimateEtaMinutes(selectedRoute, currentTrip.progress, currentTrip.speedKph) : null;
 
   return (
-    <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
-      <View style={styles.topCard}>
-        <View style={styles.topRow}>
-          <View>
-            <Text style={styles.kicker}>Driver mode</Text>
-            <Text style={styles.title}>Share location only while the trip is active.</Text>
-          </View>
-          <View style={[styles.statusPill, backendReady ? styles.onlinePill : styles.offlinePill]}>
-            <Text style={styles.statusPillText}>{backendReady ? 'Supabase ready' : 'Local demo'}</Text>
-          </View>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
+        <View style={styles.appBar}>
+          <AppBrand compact />
         </View>
 
-        <Text style={styles.description}>
-          This screen follows the capstone design: a driver taps start, the app shares position, and riders see the bus on the map.
-        </Text>
-
-        <View style={styles.noticeCard}>
-          <Text style={styles.noticeTitle}>{trackingLabel}</Text>
-          <Text style={styles.noticeBody}>{permissionLabel}</Text>
-          {busyMessage ? <Text style={styles.noticeError}>{busyMessage}</Text> : null}
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Account</Text>
-        <View style={styles.authCard}>
-          {session ? (
-            <>
-              <Text style={styles.authLabel}>Signed in as</Text>
-              <Text style={styles.authValue}>{session.user.email}</Text>
-              <Pressable style={[styles.actionButton, styles.logoutButton]} onPress={handleLogout}>
-                <Text style={styles.actionButtonText}>Sign out</Text>
-              </Pressable>
-            </>
-          ) : (
-            <>
-              <Text style={styles.authLabel}>Sign in to use real Supabase writes</Text>
-              <TextInput
-                value={displayName}
-                onChangeText={setDisplayName}
-                placeholder="Display name"
-                placeholderTextColor="#64748B"
-                style={styles.input}
-              />
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                placeholder="Email"
-                placeholderTextColor="#64748B"
-                style={styles.input}
-              />
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                placeholder="Password"
-                placeholderTextColor="#64748B"
-                style={styles.input}
-              />
-              <View style={styles.authRow}>
-                <Pressable style={[styles.actionButton, styles.secondaryButton]} onPress={handleSignIn}>
-                  <Text style={styles.actionButtonText}>Sign in</Text>
-                </Pressable>
-                <Pressable style={[styles.actionButton, styles.secondaryButton]} onPress={handleSignUp}>
-                  <Text style={styles.actionButtonText}>Create account</Text>
-                </Pressable>
-              </View>
-            </>
-          )}
-          {!backendReady ? <Text style={styles.authHint}>Set your Supabase URL and anon key to enable live writes.</Text> : null}
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Choose a route</Text>
-        <View style={styles.routeRow}>
-          {routes.map((route) => {
-            const selected = route.id === selectedRouteId;
-            return (
-              <Pressable
-                key={route.id}
-                onPress={() => setSelectedRouteId(route.id)}
-                style={[
-                  styles.routeChip,
-                  {
-                    backgroundColor: selected ? route.color : '#142033',
-                    borderColor: route.color,
-                  },
-                ]}
-              >
-                <Text style={styles.routeChipCode}>{route.code}</Text>
-                <Text style={styles.routeChipText}>{route.name}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Trip details</Text>
-        <View style={styles.formGrid}>
-          <Field label="Bus code" value={busCode} onChangeText={setBusCode} placeholder="AB-142" />
-          <Field label="Driver name" value={driverName} onChangeText={setDriverName} placeholder="Kuya Ben" />
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <RouteMap route={selectedRoute} trips={driverTrips} selectedTripId={currentTrip?.id ?? null} />
-      </View>
-
-      <View style={styles.section}>
-        <View style={styles.metricsRow}>
-          <Metric label="Route" value={selectedRoute.code} />
-          <Metric label="Pilot stops" value={`${selectedRoute.stops.length}`} />
-          <Metric label="Live buses" value={`${driverTrips.length}`} />
-        </View>
-      </View>
-
-      {activeTrip && activeTripMeta ? (
-        <View style={styles.activeCard}>
-          <View style={styles.activeHeader}>
+        <View style={styles.hero}>
+          <View style={styles.heroTop}>
             <View>
-              <Text style={styles.activeLabel}>Active trip</Text>
-              <Text style={styles.activeValue}>
-                {activeTrip.busCode} on {activeTripMeta.route.code}
-              </Text>
+              <Text style={styles.eyebrow}>Driver console</Text>
+              <Text style={styles.heroTitle}>Good day, {driverName}</Text>
             </View>
-            <View style={styles.liveBadge}>
-              <Text style={styles.liveBadgeText}>{activeTrip.source === 'driver' ? 'Driver verified' : 'Demo motion'}</Text>
+            <View style={[styles.statusBadge, currentTrip ? styles.statusBadgeLive : styles.statusBadgeReady]}>
+              <View style={[styles.statusDot, currentTrip && styles.statusDotLive]} />
+              <Text style={styles.statusBadgeText}>{currentTrip ? 'ON TRIP' : 'READY'}</Text>
             </View>
           </View>
+          <Text style={styles.heroStatus}>{statusLabel}</Text>
+          <Text style={styles.heroHint}>{permissionLabel}</Text>
+          {errorMessage ? <View style={styles.errorBox}><Ionicons name="alert-circle" size={18} color={colors.error} /><Text style={styles.errorText}>{errorMessage}</Text></View> : null}
+        </View>
 
-          <View style={styles.activeGrid}>
-            <Metric label="ETA" value={`${activeTripMeta.etaMinutes} min`} />
-            <Metric label="Speed" value={`${activeTrip.speedKph.toFixed(0)} km/h`} />
-            <Metric label="Accuracy" value={`${Math.round(activeTrip.accuracyM)} m`} />
-            <Metric label="Updated" value={new Date(activeTrip.lastUpdatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} />
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionKicker}>Assignment</Text>
+            <Text style={styles.sectionTitle}>Ormoc–Sogod service</Text>
           </View>
-
-          <View style={styles.actionRow}>
-            <Pressable style={[styles.actionButton, styles.endButton]} onPress={handleEndTrip}>
-              <Text style={styles.actionButtonText}>End trip</Text>
-            </Pressable>
+          <View style={styles.backendBadge}>
+            <Ionicons name={backendReady ? 'cloud-done-outline' : 'flask-outline'} size={16} color={backendReady ? colors.secondary : colors.amber} />
+            <Text style={styles.backendText}>{backendReady ? 'Supabase live' : 'Demo mode'}</Text>
           </View>
         </View>
-      ) : (
-        <View style={styles.activeCard}>
-          <Text style={styles.activeLabel}>No trip active</Text>
-          <Text style={styles.activeCopy}>
-            When you start a trip, this card becomes the live status view for the bus currently sharing position.
-          </Text>
-          <View style={styles.actionRow}>
-            <Pressable style={[styles.actionButton, styles.startButton]} onPress={handleStartTrip}>
-              <Text style={styles.actionButtonText}>Start trip</Text>
-            </Pressable>
+
+        <View style={styles.assignmentCard}>
+          <Text style={styles.inputLabel}>Assigned route</Text>
+          <View style={styles.routeRow}>
+            {routeList.map((route) => (
+              <Pressable key={route.id} disabled={Boolean(currentTrip)} onPress={() => setSelectedRouteId(route.id)} style={[styles.routeChoice, selectedRoute.id === route.id && styles.routeChoiceSelected]}>
+                <View style={[styles.routeIcon, { backgroundColor: route.color }]}><Ionicons name="bus" size={20} color="#FFFFFF" /></View>
+                <View style={styles.routeTextWrap}><Text style={styles.routeCode}>{route.code}</Text><Text style={styles.routeName}>{route.name}</Text></View>
+                {selectedRoute.id === route.id ? <Ionicons name="checkmark-circle" size={24} color={colors.secondary} /> : null}
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.inputLabel}>Bus code</Text>
+          <View style={styles.inputWrap}>
+            <Ionicons name="keypad-outline" size={21} color={colors.outline} />
+            <TextInput value={busCode} onChangeText={setBusCode} editable={!currentTrip} autoCapitalize="characters" autoCorrect={false} maxLength={20} accessibilityLabel="Assigned bus code" placeholder="AB-142" placeholderTextColor={colors.outlineSoft} style={styles.input} />
           </View>
         </View>
-      )}
-    </ScrollView>
+
+        <View style={styles.mapCard}>
+          <RouteMap route={selectedRoute} trips={routeTrips} selectedTripId={currentTrip?.id ?? null} height={280} />
+          <View style={styles.mapOverlay}><Ionicons name="navigate" size={15} color={colors.primary} /><Text style={styles.mapOverlayText}>{currentTrip ? 'Your live position' : `${selectedRoute.stops.length} pilot stops`}</Text></View>
+        </View>
+
+        <View style={styles.metricsRow}>
+          <Metric icon="speedometer-outline" label="Speed" value={`${Math.round(currentTrip?.speedKph ?? 0)} km/h`} />
+          <Metric icon="locate-outline" label="GPS" value={currentTrip ? `${Math.round(currentTrip.accuracyM)} m` : 'Standby'} />
+          <Metric icon="time-outline" label="ETA" value={eta === null ? '--' : `${eta} min`} />
+        </View>
+
+        <Pressable disabled={busy} onPress={() => void (currentTrip ? endTrip() : startTrip())} style={({ pressed }) => [styles.dispatchButton, currentTrip && styles.endButton, pressed && styles.buttonPressed, busy && styles.buttonDisabled]}>
+          {busy ? <ActivityIndicator color="#FFFFFF" /> : <><Ionicons name={currentTrip ? 'stop-circle' : 'play-circle'} size={25} color="#FFFFFF" /><Text style={styles.dispatchButtonText}>{currentTrip ? 'End trip and stop sharing' : 'Start trip and share location'}</Text></>}
+        </Pressable>
+        <Text style={styles.privacyText}><Ionicons name="shield-checkmark-outline" size={13} /> Location is shared only during an active trip.</Text>
+
+        {session ? <Pressable style={styles.signOutButton} onPress={() => void signOut().then(() => router.replace('/login'))}><Ionicons name="log-out-outline" size={18} color={colors.inkMuted} /><Text style={styles.signOutText}>Sign out {session.user.email}</Text></Pressable> : null}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
-function Field({
-  label,
-  value,
-  onChangeText,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (text: string) => void;
-  placeholder: string;
-}) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#64748B"
-        style={styles.input}
-      />
-    </View>
-  );
+function Metric({ icon, label, value }: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; value: string }) {
+  return <View style={styles.metric}><Ionicons name={icon} size={20} color={colors.primary} /><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>;
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.metricCard}>
-      <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={styles.metricValue}>{value}</Text>
-    </View>
-  );
+function CenteredState({ icon, title, body, loading, action, onPress, secondaryAction, onSecondaryPress }: { icon: React.ComponentProps<typeof Ionicons>['name']; title: string; body: string; loading?: boolean; action?: string; onPress?: () => void; secondaryAction?: string; onSecondaryPress?: () => void }) {
+  return <SafeAreaView style={styles.stateSafe}><View style={styles.stateGlow} /><View style={styles.stateCard}><View style={styles.stateIcon}><Ionicons name={icon} size={38} color={colors.primary} /></View><AppBrand compact /><Text style={styles.stateTitle}>{title}</Text><Text style={styles.stateBody}>{body}</Text>{loading ? <ActivityIndicator color={colors.primary} style={styles.stateLoader} /> : null}{action ? <Pressable style={styles.stateAction} onPress={onPress}><Text style={styles.stateActionText}>{action}</Text></Pressable> : null}{secondaryAction ? <Pressable style={styles.stateSecondary} onPress={onSecondaryPress}><Text style={styles.stateSecondaryText}>{secondaryAction}</Text></Pressable> : null}</View></SafeAreaView>;
 }
 
 const styles = StyleSheet.create({
-  page: {
-    padding: 20,
-    paddingTop: 18,
-    paddingBottom: 36,
-    backgroundColor: '#07111D',
-    minHeight: '100%',
-  },
-  topCard: {
-    borderRadius: 30,
-    padding: 20,
-    backgroundColor: '#F8FAFC',
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 4,
-  },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  kicker: {
-    color: '#1D9E75',
-    textTransform: 'uppercase',
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    fontSize: 12,
-  },
-  title: {
-    marginTop: 8,
-    fontSize: 28,
-    lineHeight: 34,
-    fontWeight: '900',
-    color: '#0F172A',
-    letterSpacing: -0.5,
-    flexShrink: 1,
-  },
-  description: {
-    marginTop: 12,
-    fontSize: 15,
-    lineHeight: 22,
-    color: '#475569',
-  },
-  statusPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-  },
-  onlinePill: {
-    backgroundColor: '#DCFCE7',
-  },
-  offlinePill: {
-    backgroundColor: '#E2E8F0',
-  },
-  statusPillText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  noticeCard: {
-    marginTop: 16,
-    borderRadius: 20,
-    padding: 14,
-    backgroundColor: '#0F172A',
-  },
-  noticeTitle: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  noticeBody: {
-    marginTop: 4,
-    color: '#CBD5E1',
-    fontSize: 13,
-  },
-  noticeError: {
-    marginTop: 6,
-    color: '#FCA5A5',
-    fontSize: 13,
-  },
-  section: {
-    marginTop: 18,
-  },
-  sectionTitle: {
-    color: '#F8FAFC',
-    fontSize: 18,
-    fontWeight: '800',
-    marginBottom: 10,
-  },
-  authCard: {
-    borderRadius: 24,
-    padding: 16,
-    backgroundColor: '#132033',
-    borderWidth: 1,
-    borderColor: '#22324A',
-    gap: 10,
-  },
-  authLabel: {
-    color: '#94A3B8',
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  authValue: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  authHint: {
-    color: '#94A3B8',
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  authRow: {
-    flexDirection: 'row',
-    gap: 10,
-    flexWrap: 'wrap',
-  },
-  routeRow: {
-    gap: 10,
-  },
-  routeChip: {
-    borderRadius: 20,
-    borderWidth: 1,
-    padding: 14,
-  },
-  routeChipCode: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  routeChipText: {
-    color: '#E2E8F0',
-    marginTop: 4,
-    fontSize: 13,
-  },
-  formGrid: {
-    gap: 12,
-  },
-  field: {
-    borderRadius: 18,
-    padding: 14,
-    backgroundColor: '#132033',
-    borderWidth: 1,
-    borderColor: '#22324A',
-  },
-  fieldLabel: {
-    color: '#94A3B8',
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  input: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    paddingVertical: 4,
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  metricCard: {
-    flexGrow: 1,
-    minWidth: 92,
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: '#132033',
-    borderWidth: 1,
-    borderColor: '#22324A',
-  },
-  metricLabel: {
-    color: '#94A3B8',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  metricValue: {
-    marginTop: 8,
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '900',
-  },
-  activeCard: {
-    marginTop: 18,
-    borderRadius: 24,
-    padding: 18,
-    backgroundColor: '#F8FAFC',
-  },
-  activeHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  activeLabel: {
-    fontSize: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    color: '#1D9E75',
-    fontWeight: '800',
-  },
-  activeValue: {
-    marginTop: 6,
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  liveBadge: {
-    backgroundColor: '#E8F5EF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-  },
-  liveBadgeText: {
-    color: '#14704F',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  activeGrid: {
-    marginTop: 14,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  actionRow: {
-    marginTop: 16,
-    flexDirection: 'row',
-    gap: 10,
-    flexWrap: 'wrap',
-  },
-  actionButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 15,
-    borderRadius: 18,
-    minWidth: 140,
-  },
-  startButton: {
-    backgroundColor: '#1D9E75',
-  },
-  endButton: {
-    backgroundColor: '#DC2626',
-  },
-  logoutButton: {
-    backgroundColor: '#334155',
-  },
-  secondaryButton: {
-    backgroundColor: '#2563EB',
-    flexGrow: 1,
-  },
-  actionButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  activeCopy: {
-    marginTop: 8,
-    color: '#475569',
-    fontSize: 14,
-    lineHeight: 21,
-  },
+  safeArea: { flex: 1, backgroundColor: colors.background },
+  page: { paddingHorizontal: 18, paddingBottom: 34 },
+  appBar: { height: 70, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  hero: { padding: 21, borderRadius: 26, backgroundColor: colors.primary, overflow: 'hidden' },
+  heroTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  eyebrow: { color: '#CFE3FF', fontFamily: fonts.medium, fontSize: 11, textTransform: 'uppercase', letterSpacing: 1.1 },
+  heroTitle: { marginTop: 7, color: '#FFFFFF', fontFamily: fonts.semibold, fontSize: 23, letterSpacing: -0.4 },
+  heroStatus: { marginTop: 22, color: '#FFFFFF', fontFamily: fonts.semibold, fontSize: 16 },
+  heroHint: { marginTop: 5, color: '#D3E4FF', fontFamily: fonts.regular, fontSize: 12, lineHeight: 18 },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 999 },
+  statusBadgeReady: { backgroundColor: 'rgba(255,255,255,0.14)' },
+  statusBadgeLive: { backgroundColor: colors.secondarySoft },
+  statusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#FFFFFF' },
+  statusDotLive: { backgroundColor: colors.secondary },
+  statusBadgeText: { color: colors.ink, fontFamily: fonts.bold, fontSize: 10, letterSpacing: 0.7 },
+  errorBox: { marginTop: 14, flexDirection: 'row', gap: 8, padding: 11, borderRadius: 12, backgroundColor: colors.errorSoft },
+  errorText: { flex: 1, color: colors.error, fontFamily: fonts.medium, fontSize: 11, lineHeight: 16 },
+  sectionHeader: { marginTop: 24, marginBottom: 12, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 },
+  sectionKicker: { color: colors.primary, fontFamily: fonts.semibold, fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 },
+  sectionTitle: { marginTop: 4, color: colors.ink, fontFamily: fonts.semibold, fontSize: 19 },
+  backendBadge: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  backendText: { color: colors.inkMuted, fontFamily: fonts.medium, fontSize: 10 },
+  assignmentCard: { padding: 17, borderRadius: 23, backgroundColor: colors.surface, shadowColor: '#000000', shadowOpacity: 0.05, shadowRadius: 15, elevation: 2 },
+  inputLabel: { marginBottom: 9, color: colors.inkMuted, fontFamily: fonts.medium, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6 },
+  routeRow: { gap: 9, marginBottom: 18 },
+  routeChoice: { minHeight: 66, padding: 10, borderRadius: 17, borderWidth: 1, borderColor: colors.outlineSoft, flexDirection: 'row', alignItems: 'center', gap: 11 },
+  routeChoiceSelected: { borderColor: colors.secondary, backgroundColor: '#EFFBEF' },
+  routeIcon: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  routeTextWrap: { flex: 1 },
+  routeCode: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 13 },
+  routeName: { marginTop: 3, color: colors.inkMuted, fontFamily: fonts.regular, fontSize: 11 },
+  inputWrap: { minHeight: 55, borderRadius: 15, backgroundColor: colors.surfaceLow, borderWidth: 1, borderColor: colors.outlineSoft, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  input: { flex: 1, color: colors.ink, fontFamily: fonts.semibold, fontSize: 15 },
+  mapCard: { marginTop: 18, borderRadius: 26, overflow: 'hidden', backgroundColor: colors.surface },
+  mapOverlay: { position: 'absolute', left: 14, bottom: 14, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.94)' },
+  mapOverlayText: { color: colors.ink, fontFamily: fonts.medium, fontSize: 10 },
+  metricsRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  metric: { flex: 1, minHeight: 96, borderRadius: 20, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  metricValue: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 14 },
+  metricLabel: { color: colors.inkMuted, fontFamily: fonts.regular, fontSize: 10 },
+  dispatchButton: { minHeight: 62, marginTop: 20, borderRadius: 999, backgroundColor: colors.secondary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, shadowColor: colors.secondary, shadowOpacity: 0.2, shadowRadius: 12, elevation: 4 },
+  endButton: { backgroundColor: colors.error, shadowColor: colors.error },
+  dispatchButtonText: { color: '#FFFFFF', fontFamily: fonts.semibold, fontSize: 15 },
+  buttonPressed: { opacity: 0.86, transform: [{ scale: 0.99 }] },
+  buttonDisabled: { opacity: 0.65 },
+  privacyText: { marginTop: 11, textAlign: 'center', color: colors.inkMuted, fontFamily: fonts.regular, fontSize: 10 },
+  signOutButton: { marginTop: 24, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  signOutText: { color: colors.inkMuted, fontFamily: fonts.medium, fontSize: 11 },
+  stateSafe: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: 22, overflow: 'hidden' },
+  stateGlow: { position: 'absolute', width: 360, height: 360, borderRadius: 180, top: -160, right: -170, backgroundColor: colors.primarySoft, opacity: 0.75 },
+  stateCard: { width: '100%', maxWidth: 430, padding: 25, borderRadius: 28, backgroundColor: colors.surface, alignItems: 'center', shadowColor: '#000000', shadowOpacity: 0.06, shadowRadius: 22, elevation: 4 },
+  stateIcon: { width: 76, height: 76, borderRadius: 22, marginBottom: 14, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  stateTitle: { marginTop: 22, color: colors.ink, fontFamily: fonts.semibold, fontSize: 22, textAlign: 'center' },
+  stateBody: { marginTop: 9, color: colors.inkMuted, fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, textAlign: 'center' },
+  stateLoader: { marginTop: 20 },
+  stateAction: { width: '100%', minHeight: 56, marginTop: 22, borderRadius: 999, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  stateActionText: { color: '#FFFFFF', fontFamily: fonts.semibold, fontSize: 15 },
+  stateSecondary: { marginTop: 15, padding: 8 },
+  stateSecondaryText: { color: colors.primary, fontFamily: fonts.semibold, fontSize: 13 },
 });

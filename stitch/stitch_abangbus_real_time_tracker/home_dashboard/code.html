@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AbangBus - Rider Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface": "#f8f9ff",
+                    "primary-fixed": "#d3e4ff",
+                    "surface-dim": "#cbdbf5",
+                    "secondary-fixed": "#98f994",
+                    "on-secondary-fixed-variant": "#005313",
+                    "on-surface-variant": "#404752",
+                    "on-tertiary-container": "#fffbff",
+                    "secondary-container": "#98f994",
+                    "primary": "#005ea4",
+                    "surface-container-highest": "#d3e4fe",
+                    "primary-fixed-dim": "#a2c9ff",
+                    "on-tertiary-fixed": "#261a00",
+                    "secondary-fixed-dim": "#7ddc7a",
+                    "tertiary": "#755700",
+                    "surface-bright": "#f8f9ff",
+                    "tertiary-fixed-dim": "#fabd00",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-variant": "#d3e4fe",
+                    "on-background": "#0b1c30",
+                    "inverse-surface": "#213145",
+                    "on-surface": "#0b1c30",
+                    "surface-container-high": "#dce9ff",
+                    "on-primary-fixed-variant": "#004881",
+                    "outline-variant": "#c0c7d4",
+                    "inverse-primary": "#a2c9ff",
+                    "tertiary-container": "#946f00",
+                    "on-primary-container": "#fdfcff",
+                    "on-error": "#ffffff",
+                    "error": "#ba1a1a",
+                    "on-secondary": "#ffffff",
+                    "tertiary-fixed": "#ffdf9e",
+                    "on-secondary-fixed": "#002204",
+                    "inverse-on-surface": "#eaf1ff",
+                    "on-tertiary-fixed-variant": "#5b4300",
+                    "outline": "#707783",
+                    "background": "#f8f9ff",
+                    "error-container": "#ffdad6",
+                    "surface-container-low": "#eff4ff",
+                    "on-error-container": "#93000a",
+                    "surface-container": "#e5eeff",
+                    "on-secondary-container": "#0c7521",
+                    "surface-tint": "#0060a8",
+                    "on-primary": "#ffffff",
+                    "on-tertiary": "#ffffff",
+                    "on-primary-fixed": "#001c38",
+                    "secondary": "#006e1c",
+                    "primary-container": "#0077ce"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "base": "4px",
+                    "margin-desktop": "48px",
+                    "gutter": "16px",
+                    "xs": "4px",
+                    "lg": "24px",
+                    "sm": "8px",
+                    "margin-mobile": "16px",
+                    "xl": "32px",
+                    "md": "16px"
+            },
+            "fontFamily": {
+                    "headline-md": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "body-md": ["Inter"],
+                    "headline-sm": ["Inter"],
+                    "label-sm": ["Inter"],
+                    "label-md": ["Inter"],
+                    "label-lg": ["Inter"],
+                    "display-lg": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "headline-sm": ["16px", {"lineHeight": "24px", "fontWeight": "600"}],
+                    "label-sm": ["11px", {"lineHeight": "16px", "letterSpacing": "0.5px", "fontWeight": "500"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.5px", "fontWeight": "500"}],
+                    "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.1px", "fontWeight": "500"}],
+                    "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+      .glass-card {
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+      }
+      .pulse-dot {
+        animation: pulse 2s infinite;
+      }
+      @keyframes pulse {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.5); opacity: 0.5; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+      .ticker-wrap {
+        overflow: hidden;
+        white-space: nowrap;
+      }
+      .ticker-content {
+        display: inline-block;
+        animation: ticker 25s linear infinite;
+      }
+      @keyframes ticker {
+        0% { transform: translateX(100%); }
+        100% { transform: translateX(-100%); }
+      }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body-md min-h-screen pb-24 md:pb-0">
+<!-- Top App Bar -->
+<header class="bg-surface dark:bg-on-background flex justify-between items-center w-full px-margin-mobile h-16 shadow-sm dark:shadow-none sticky top-0 z-40">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary dark:text-primary-fixed-dim" style="font-variation-settings: 'FILL' 1;">directions_bus</span>
+<h1 class="font-display-lg text-display-lg text-primary dark:text-primary-fixed-dim tracking-tight">AbangBus</h1>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-on-surface-variant hover:bg-surface-container dark:hover:bg-inverse-surface transition-colors p-2 rounded-full">notifications</button>
+<div class="w-10 h-10 rounded-full border-2 border-primary-container overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a friendly young adult male named Alex with a welcoming smile, shot in soft natural morning light. The background is a clean, minimalist urban environment with subtle blue and white tones to match a corporate startup aesthetic. High resolution, shallow depth of field, modern corporate portrait style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBflovRnMtISzaTugloHQI4D0g2i2NgqUwi6-E67nHXFCh51ieam_2R-JyxaAYyC5p12SfY80iKhj6k7xwHV_5fTfoarc7DJr_O95VsE-XM2IhHEf3Sdi9tQgHDLt0bg5wPQUYeGvbtsWRnoQrL5_rLe2YccJNrhLhjx17rVDI_DoEiEUf1E3yPCqA1iCZz817lGltqxQ4ZFkpiCC0QbCFGgD67tm22ricM-7czTX0DXG9Rg2iIjl-_vbDyvdEM1yZtvsPwkz20MQBP"/>
+</div>
+</div>
+</header>
+<main class="max-w-7xl mx-auto px-margin-mobile md:px-margin-desktop py-lg">
+<!-- Greeting & Search Section -->
+<section class="mb-lg">
+<div class="mb-lg">
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Good morning, Alex!</h2>
+<p class="text-on-surface-variant font-body-md">Where would you like to go today?</p>
+</div>
+<div class="relative group">
+<div class="absolute inset-y-0 left-5 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-outline">search</span>
+</div>
+<input class="w-full h-14 pl-14 pr-12 rounded-full border-none bg-surface-container-lowest shadow-[0px_4px_20px_rgba(0,0,0,0.05)] focus:ring-2 focus:ring-primary text-body-lg transition-all" placeholder="Search destination, bus or route..." type="text"/>
+<div class="absolute inset-y-0 right-5 flex items-center">
+<button class="material-symbols-outlined text-primary">mic</button>
+</div>
+</div>
+</section>
+<!-- Main Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-gutter">
+<!-- Live Bus Summary (Large Card) -->
+<div class="md:col-span-8 bg-surface-container-lowest rounded-[24px] p-lg shadow-[0px_4px_20px_rgba(0,0,0,0.05)] relative overflow-hidden group border border-white/20">
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-lg relative z-10">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="relative flex h-3 w-3">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-3 w-3 bg-secondary"></span>
+</span>
+<span class="font-label-lg text-label-lg text-secondary">5 buses online</span>
+</div>
+<h3 class="font-headline-md text-headline-md">Live Fleet Status</h3>
+</div>
+<div class="bg-primary-container text-on-primary-container px-lg py-sm rounded-xl flex items-center gap-3">
+<span class="material-symbols-outlined">schedule</span>
+<div>
+<div class="text-label-sm opacity-80">Next arrival: 8 mins</div>
+<div class="font-label-lg text-label-lg">Route 7 • North Gate</div>
+</div>
+</div>
+</div>
+<div class="h-64 rounded-xl overflow-hidden relative border border-outline-variant">
+<div class="absolute inset-0 z-0" data-alt="A stylized minimalist map of a modern city center with light blue water bodies and clean white roads. Small bus icons with pulsing green dots are scattered along defined transit routes. High-end UI design aesthetic with soft shadows and clean typography. The colors are predominantly white, light blue, and bright green." data-location="Kuala Lumpur" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuC673XqNHdzZ1w3hXn4us6rZCI1gzcnRzKimOWKbwp7YFyQya_Q0ET1yw6KdpjIcJ4rQJOB1zrzgWEFXIXksFA3ARcmNt55ifk0ZTEcda58OjLnnuIfy2W78a74qoLnQ_GhDcutVWLjVZsDfPmFGQbY2QsnuTJYv8pWooVSGHtHTwCMkM4dB44M6mV65fttCqy43SYHoLlf2i3rVM0NWtu8ICsQ0gJAowoasWCW10V1mZ9s0iECzlRpxmFP35Yiu7X6YaFlRGs6Wdjx')"></div>
+<div class="absolute bottom-4 left-4 bg-white/90 backdrop-blur-md p-3 rounded-lg shadow-md border border-white/50">
+<p class="font-label-md text-label-md text-on-surface">Tracking active: Real-time GPS</p>
+</div>
+</div>
+</div>
+<!-- Terminal Info Card (Sidebar Style) -->
+<div class="md:col-span-4 flex flex-col gap-gutter">
+<div class="bg-primary text-on-primary rounded-[24px] p-lg shadow-lg relative overflow-hidden active:scale-95 transition-all cursor-pointer">
+<div class="absolute -right-4 -top-4 opacity-10">
+<span class="material-symbols-outlined text-[120px]">location_on</span>
+</div>
+<div class="font-label-md text-label-md uppercase tracking-wider mb-2 opacity-80">Nearest Terminal</div>
+<h3 class="font-headline-md text-headline-md mb-2">North Gate Terminal</h3>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">directions_walk</span>
+<span class="font-body-md">2 mins away (150m)</span>
+</div>
+<div class="mt-lg pt-lg border-t border-white/20 flex justify-between items-center">
+<span class="font-label-lg text-label-lg">See Routes</span>
+<span class="material-symbols-outlined">arrow_forward</span>
+</div>
+</div>
+<!-- Announcements Ticker -->
+<div class="bg-surface-container rounded-[24px] p-md border border-outline-variant/30 flex items-center gap-3">
+<div class="bg-tertiary-container p-2 rounded-full text-on-tertiary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">campaign</span>
+</div>
+<div class="ticker-wrap flex-1">
+<div class="ticker-content font-label-md text-label-md text-on-surface-variant">
+                            Route 12 detour via Central Park due to construction. Next arrival Route 7 delayed 5 mins. New fare rewards program starting Monday!
+                        </div>
+</div>
+</div>
+</div>
+<!-- Quick Actions Grid -->
+<div class="md:col-span-12">
+<h3 class="font-headline-sm text-headline-sm mb-md">Quick Actions</h3>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-gutter">
+<!-- Action 1 -->
+<button class="bg-surface-container-lowest p-lg rounded-[20px] shadow-[0px_4px_20px_rgba(0,0,0,0.05)] hover:bg-surface-container transition-all flex flex-col items-center text-center group">
+<div class="w-14 h-14 rounded-full bg-primary-fixed flex items-center justify-center text-primary mb-3 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-[28px]">explore</span>
+</div>
+<span class="font-label-lg text-label-lg">Locate Bus</span>
+</button>
+<!-- Action 2 -->
+<button class="bg-surface-container-lowest p-lg rounded-[20px] shadow-[0px_4px_20px_rgba(0,0,0,0.05)] hover:bg-surface-container transition-all flex flex-col items-center text-center group">
+<div class="w-14 h-14 rounded-full bg-secondary-fixed flex items-center justify-center text-on-secondary-container mb-3 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-[28px]">route</span>
+</div>
+<span class="font-label-lg text-label-lg">Nearby Routes</span>
+</button>
+<!-- Action 3 -->
+<button class="bg-surface-container-lowest p-lg rounded-[20px] shadow-[0px_4px_20px_rgba(0,0,0,0.05)] hover:bg-surface-container transition-all flex flex-col items-center text-center group">
+<div class="w-14 h-14 rounded-full bg-error-container flex items-center justify-center text-error mb-3 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-[28px]">report_problem</span>
+</div>
+<span class="font-label-lg text-label-lg">Report Bus</span>
+</button>
+<!-- Action 4 -->
+<button class="bg-surface-container-lowest p-lg rounded-[20px] shadow-[0px_4px_20px_rgba(0,0,0,0.05)] hover:bg-surface-container transition-all flex flex-col items-center text-center group">
+<div class="w-14 h-14 rounded-full bg-tertiary-fixed flex items-center justify-center text-tertiary mb-3 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">star</span>
+</div>
+<span class="font-label-lg text-label-lg">Favorites</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation Shell -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-3 bg-surface dark:bg-on-background shadow-[0px_-4px_20px_rgba(0,0,0,0.05)] md:hidden">
+<button class="flex flex-col items-center justify-center bg-primary-container dark:bg-primary-fixed text-on-primary-container dark:text-on-primary-fixed rounded-full px-5 py-1 transition-all">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-label-md text-label-md">Home</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-5 py-1 hover:bg-surface-container-high rounded-full transition-all">
+<span class="material-symbols-outlined">map</span>
+<span class="font-label-md text-label-md">Map</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-5 py-1 hover:bg-surface-container-high rounded-full transition-all">
+<span class="material-symbols-outlined">emergency_share</span>
+<span class="font-label-md text-label-md">Reports</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-5 py-1 hover:bg-surface-container-high rounded-full transition-all">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-md text-label-md">Profile</span>
+</button>
+</nav>
+<!-- Floating Action Button (Mobile Contextual) -->
+<button class="fixed bottom-24 right-6 w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg flex items-center justify-center active:scale-90 duration-150 md:hidden z-40">
+<span class="material-symbols-outlined text-[30px]">qr_code_scanner</span>
+</button>
+<script>
+        // Micro-interaction for ticker repeat logic or generic UX enhancements
+        document.addEventListener('DOMContentLoaded', () => {
+            const ticker = document.querySelector('.ticker-content');
+            if (ticker) {
+                // Ensure ticker is smooth
+                ticker.addEventListener('mouseover', () => {
+                    ticker.style.animationPlayState = 'paused';
+                });
+                ticker.addEventListener('mouseout', () => {
+                    ticker.style.animationPlayState = 'running';
+                });
+            }
+
+            // Simple search focus effect
+            const searchInput = document.querySelector('input[type="text"]');
+            searchInput.addEventListener('focus', () => {
+                searchInput.parentElement.classList.add('scale-[1.01]');
+            });
+            searchInput.addEventListener('blur', () => {
+                searchInput.parentElement.classList.remove('scale-[1.01]');
+            });
+        });
+    </script>
+</body></html>
