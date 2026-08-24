@@ -12,6 +12,8 @@ import {
   useFonts,
 } from '@expo-google-fonts/inter';
 import { colors } from '@/lib/theme';
+import { SupabaseSessionProvider } from '@/lib/use-session';
+import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -35,14 +37,19 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <Stack screenOptions={{ contentStyle: { backgroundColor: colors.background }, headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="login" />
-        <Stack.Screen name="reset-password" />
-        <Stack.Screen name="(driver)" options={{ headerShown: false }} />
-        <Stack.Screen name="(rider)" options={{ headerShown: false }} />
-      </Stack>
-      <StatusBar style="dark" />
+      <AppErrorBoundary>
+        <SupabaseSessionProvider>
+          <Stack screenOptions={{ contentStyle: { backgroundColor: colors.background }, headerShown: false, title: 'AbangBus — Live Provincial Transit' }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="login" />
+            <Stack.Screen name="reset-password" />
+            <Stack.Screen name="privacy" />
+            <Stack.Screen name="(driver)" options={{ headerShown: false }} />
+            <Stack.Screen name="(rider)" options={{ headerShown: false }} />
+          </Stack>
+          <StatusBar style="dark" />
+        </SupabaseSessionProvider>
+      </AppErrorBoundary>
     </SafeAreaProvider>
   );
 }

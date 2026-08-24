@@ -4,12 +4,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppBrand } from '@/components/AppBrand';
-import { useSupabaseSession } from '@/lib/use-session';
+import { useSessionState } from '@/lib/use-session';
 import { colors, fonts } from '@/lib/theme';
 
 export default function SplashScreen() {
   const router = useRouter();
-  const [session] = useSupabaseSession();
+  const { session, loading: sessionLoading } = useSessionState();
   const motion = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -21,15 +21,17 @@ export default function SplashScreen() {
     );
     animation.start();
 
-    const timer = setTimeout(() => {
-      router.replace(session ? '/(rider)/home' : '/login');
-    }, 1700);
+    const timer = sessionLoading
+      ? null
+      : setTimeout(() => {
+          router.replace(session ? '/(rider)/home' : '/login');
+        }, 1700);
 
     return () => {
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
       animation.stop();
     };
-  }, [motion, router, session]);
+  }, [motion, router, session, sessionLoading]);
 
   const openApp = () => router.replace(session ? '/(rider)/home' : '/login');
 

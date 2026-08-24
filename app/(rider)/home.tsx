@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -14,13 +14,9 @@ import {
   getRouteById,
   routes as localRoutes,
   type BusStop,
-  type RouteDefinition,
-  type TripSnapshot,
 } from '@/lib/abangbus-data';
-import { getTrips, subscribeToTrips } from '@/lib/demo-tracker';
-import { isRemoteBackendReady, loadActiveTrips, loadPilotRoutes } from '@/lib/supabase-transit';
-import { supabase } from '@/lib/supabase';
 import { useSupabaseSession } from '@/lib/use-session';
+import { useLiveTransit } from '@/lib/use-live-transit';
 import { colors, fonts } from '@/lib/theme';
 
 type NearestStop = {
@@ -31,50 +27,11 @@ type NearestStop = {
 export default function HomeDashboardScreen() {
   const router = useRouter();
   const [session] = useSupabaseSession();
-  const [trips, setTrips] = useState<TripSnapshot[]>(getTrips());
-  const [routeList, setRouteList] = useState<RouteDefinition[]>(localRoutes);
-  const [selectedRouteId, setSelectedRouteId] = useState(localRoutes[0].id);
+  const { trips, routes: routeList, backendReady, loading: transitLoading, error: transitError } = useLiveTransit('abangbus-home-live');
   const [locating, setLocating] = useState(false);
   const [locationNotice, setLocationNotice] = useState<string | null>(null);
   const [nearestStop, setNearestStop] = useState<NearestStop>({ stop: localRoutes[0].stops[0], distance: null });
-  const backendReady = isRemoteBackendReady();
-
-  useEffect(() => {
-    let alive = true;
-
-    if (!backendReady) {
-      return subscribeToTrips(setTrips);
-    }
-
-    const refresh = async () => {
-      const remoteRoutes = await loadPilotRoutes();
-      const remoteTrips = await loadActiveTrips(remoteRoutes);
-      if (!alive) {
-        return;
-      }
-      setRouteList(remoteRoutes);
-      setTrips(remoteTrips);
-      if (remoteRoutes[0]) {
-        setSelectedRouteId((current) => remoteRoutes.some((route) => route.id === current) ? current : remoteRoutes[0].id);
-      }
-    };
-
-    void refresh();
-    const channel = supabase
-      ?.channel('abangbus-home-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_positions' }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'trips' }, refresh)
-      .subscribe();
-
-    return () => {
-      alive = false;
-      if (channel) {
-        void supabase?.removeChannel(channel);
-      }
-    };
-  }, [backendReady]);
-
-  const route = routeList.find((item) => item.id === selectedRouteId) ?? getRouteById(selectedRouteId) ?? routeList[0];
+  const route = routeList[0] ?? getRouteById(localRoutes[0].id);
   const routeTrips = trips.filter((trip) => trip.routeId === route.id && trip.status === 'active');
   const nextTrip = routeTrips
     .map((trip) => ({ trip, etaMinutes: estimateEtaMinutes(route, trip.progress, trip.speedKph) }))
@@ -155,7 +112,15 @@ export default function HomeDashboardScreen() {
               <RouteMap route={route} trips={routeTrips} height={235} selectedTripId={nextTrip?.trip.id ?? null} />
               <View style={styles.trackingToast}>
                 <View style={styles.liveDot} />
-                <Text style={styles.trackingToastText}>{backendReady ? 'Tracking active: Supabase realtime' : 'Tracking active: Local demo fleet'}</Text>
+                <Text style={styles.trackingToastText}>
+                  {transitLoading
+                    ? 'Connecting to live fleet...'
+                    : transitError
+                      ? 'Live fleet connection interrupted'
+                      : backendReady
+                        ? 'Tracking active: Supabase realtime'
+                        : 'Tracking active: Local demo fleet'}
+                </Text>
               </View>
             </View>
           </View>

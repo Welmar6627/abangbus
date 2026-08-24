@@ -6,7 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppBrand } from '@/components/AppBrand';
 import { RiderBottomNav } from '@/components/RiderBottomNav';
 import { routes as localRoutes } from '@/lib/abangbus-data';
-import { isRemoteBackendReady, loadFavoriteStops, setFavoriteStop, signOut, type FavoriteStopRecord } from '@/lib/supabase-transit';
+import { isRemoteBackendReady, loadFavoriteStops, setFavoriteStop, type FavoriteStopRecord } from '@/lib/supabase-transit';
+import { signOut } from '@/lib/supabase-auth';
 import { useSupabaseSession } from '@/lib/use-session';
 import { colors, fonts } from '@/lib/theme';
 

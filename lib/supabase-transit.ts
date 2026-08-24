@@ -1,7 +1,4 @@
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { Platform } from 'react-native';
-import * as Linking from 'expo-linking';
-import * as WebBrowser from 'expo-web-browser';
 import {
   estimateProgressAlongRoute,
   routes as localRoutes,
@@ -9,7 +6,17 @@ import {
   type RouteDefinition,
   type TripSnapshot,
 } from '@/lib/abangbus-data';
-import { normalizeBusCode, normalizeEmail } from '@/lib/input-validation';
+import { normalizeBusCode } from '@/lib/input-validation';
+import { parseGeographyPoint } from '@/lib/transit-mappers';
+
+export {
+  requestPasswordReset,
+  signInWithGoogle,
+  signInWithPassword,
+  signOut,
+  signUpWithPassword,
+  updatePassword,
+} from '@/lib/supabase-auth';
 
 export type FavoriteStopRecord = {
   stopId: string;
@@ -74,7 +81,6 @@ type SupabaseLivePositionRow = {
 export function isRemoteBackendReady() {
   return isSupabaseConfigured && Boolean(supabase);
 }
-
 export async function loadCurrentProfile(userId: string): Promise<UserProfile | null> {
   if (!supabase) {
     return null;
@@ -100,34 +106,6 @@ export async function loadCurrentProfile(userId: string): Promise<UserProfile | 
     displayName: data.display_name,
     phone: data.phone,
   };
-}
-
-export function parseSupabasePoint(value: unknown): LatLng {
-  if (!value) {
-    return { latitude: 0, longitude: 0 };
-  }
-
-  if (typeof value === 'string') {
-    const pointMatch = value.match(/POINT\(([-0-9.]+) ([-0-9.]+)\)/i);
-    if (pointMatch) {
-      return {
-        longitude: Number(pointMatch[1]),
-        latitude: Number(pointMatch[2]),
-      };
-    }
-  }
-
-  if (typeof value === 'object' && value !== null) {
-    const candidate = value as { type?: string; coordinates?: [number, number] };
-    if (candidate.type === 'Point' && candidate.coordinates) {
-      return {
-        longitude: candidate.coordinates[0],
-        latitude: candidate.coordinates[1],
-      };
-    }
-  }
-
-  return { latitude: 0, longitude: 0 };
 }
 
 export async function loadPilotRoutes(): Promise<RouteDefinition[]> {
@@ -162,10 +140,13 @@ export async function loadPilotRoutes(): Promise<RouteDefinition[]> {
             return null;
           }
 
+          const location = parseGeographyPoint(stop.location);
+          if (!location) return null;
+
           return {
             id: stop.id,
             name: stop.name,
-            location: parseSupabasePoint(stop.location),
+            location,
           };
         })
         .filter(Boolean) as RouteDefinition['stops'];
@@ -187,14 +168,22 @@ export async function loadActiveTrips(routes: RouteDefinition[] = localRoutes): 
     return [];
   }
 
-  const [tripsResult, positionsResult] = await Promise.all([
-    supabase.from('trips').select('id, route_id, bus_code, driver_id, status, started_at').eq('status', 'active'),
-    supabase.from('live_positions').select('trip_id, location, bearing, speed_mps, accuracy_m, source, is_mock, recorded_at'),
-  ]);
+  const tripsResult = await supabase
+    .from('trips')
+    .select('id, route_id, bus_code, driver_id, status, started_at')
+    .eq('status', 'active');
 
-  if (tripsResult.error || positionsResult.error || !tripsResult.data || !positionsResult.data) {
-    return [];
-  }
+  if (tripsResult.error) throw tripsResult.error;
+  if (!tripsResult.data?.length) return [];
+
+  const tripIds = tripsResult.data.map((trip) => trip.id);
+  const positionsResult = await supabase
+    .from('live_positions')
+    .select('trip_id, location, bearing, speed_mps, accuracy_m, source, is_mock, recorded_at')
+    .in('trip_id', tripIds);
+
+  if (positionsResult.error) throw positionsResult.error;
+  if (!positionsResult.data) return [];
 
   const positions = new Map<string, SupabaseLivePositionRow>();
   positionsResult.data.forEach((row: SupabaseLivePositionRow) => positions.set(row.trip_id, row));
@@ -208,8 +197,8 @@ export async function loadActiveTrips(routes: RouteDefinition[] = localRoutes): 
       }
 
       const route = routeMap.get(trip.route_id) ?? routes[0];
-      const { latitude, longitude } = parseSupabasePoint(position.location);
-      const location = { latitude, longitude };
+      const location = parseGeographyPoint(position.location);
+      if (!location) return null;
       return {
         id: trip.id,
         routeId: trip.route_id,
@@ -275,7 +264,6 @@ export async function upsertRemotePosition(params: {
     throw error;
   }
 }
-
 export async function completeRemoteTrip(tripId: string) {
   if (!supabase) {
     throw new Error('Supabase is not configured.');
@@ -334,7 +322,8 @@ export async function loadFavoriteStops(userId: string): Promise<FavoriteStopRec
         return null;
       }
 
-      const location = parseSupabasePoint(stop.location);
+      const location = parseGeographyPoint(stop.location);
+      if (!location) return null;
       return {
         stopId: row.stop_id,
         routeId: route.id,
@@ -372,111 +361,4 @@ export async function setFavoriteStop(userId: string, stopId: string, favorite: 
   if (error) {
     throw error;
   }
-}
-
-export async function signInWithPassword(email: string, password: string) {
-  if (!supabase) {
-    throw new Error('Supabase is not configured.');
-  }
-
-  return supabase.auth.signInWithPassword({
-    email: normalizeEmail(email),
-    password,
-  });
-}
-
-export async function signInWithGoogle() {
-  if (!supabase) {
-    throw new Error('Supabase is not configured.');
-  }
-
-  const redirectTo = Platform.OS === 'web' && typeof window !== 'undefined'
-    ? `${window.location.origin}/login`
-    : Linking.createURL('/login');
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo,
-      skipBrowserRedirect: Platform.OS !== 'web',
-    },
-  });
-
-  if (error) {
-    throw error;
-  }
-
-  if (Platform.OS === 'web') {
-    return;
-  }
-
-  if (!data.url) {
-    throw new Error('Google did not return a sign-in URL.');
-  }
-
-  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-  if (result.type !== 'success') {
-    throw new Error('Google sign-in was cancelled.');
-  }
-
-  const code = getOAuthValue(result.url, 'code');
-  if (code) {
-    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-    if (exchangeError) throw exchangeError;
-    return;
-  }
-
-  const accessToken = getOAuthValue(result.url, 'access_token');
-  const refreshToken = getOAuthValue(result.url, 'refresh_token');
-  if (!accessToken || !refreshToken) {
-    throw new Error('Google sign-in returned without a Supabase session. Check the redirect URL configuration.');
-  }
-
-  const { error: sessionError } = await supabase.auth.setSession({
-    access_token: accessToken,
-    refresh_token: refreshToken,
-  });
-  if (sessionError) throw sessionError;
-}
-
-function getOAuthValue(url: string, key: string) {
-  const match = url.match(new RegExp(`[?#&]${key}=([^&]+)`));
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
-export async function signUpWithPassword(email: string, password: string, displayName: string) {
-  if (!supabase) {
-    throw new Error('Supabase is not configured.');
-  }
-
-  return supabase.auth.signUp({
-    email: normalizeEmail(email),
-    password,
-    options: {
-      data: {
-        display_name: displayName.trim(),
-      },
-    },
-  });
-}
-
-export async function requestPasswordReset(email: string, redirectTo: string) {
-  if (!supabase) {
-    throw new Error('Supabase is not configured.');
-  }
-  return supabase.auth.resetPasswordForEmail(normalizeEmail(email), { redirectTo });
-}
-
-export async function updatePassword(password: string) {
-  if (!supabase) {
-    throw new Error('Supabase is not configured.');
-  }
-  return supabase.auth.updateUser({ password });
-}
-
-export async function signOut() {
-  if (!supabase) {
-    return;
-  }
-
-  await supabase.auth.signOut();
 }

@@ -18,11 +18,13 @@ import { AppBrand } from '@/components/AppBrand';
 import {
   isRemoteBackendReady,
   loadCurrentProfile,
+} from '@/lib/supabase-transit';
+import {
   requestPasswordReset,
   signInWithGoogle,
   signInWithPassword,
   signUpWithPassword,
-} from '@/lib/supabase-transit';
+} from '@/lib/supabase-auth';
 import { useSupabaseSession } from '@/lib/use-session';
 import { colors, fonts } from '@/lib/theme';
 import { isValidEmail, validatePassword } from '@/lib/input-validation';
@@ -229,6 +231,14 @@ export default function LoginScreen() {
               <Text style={styles.securePillText}>Secure login</Text>
             </View>
           </View>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel="Read the AbangBus privacy notice"
+            onPress={() => router.push('/privacy')}
+            style={styles.privacyLink}
+          >
+            <Text style={styles.privacyLinkText}>Privacy notice</Text>
+          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -287,4 +297,6 @@ const styles = StyleSheet.create({
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.secondary },
   livePillText: { color: colors.secondary, fontFamily: fonts.medium, fontSize: 12 },
   securePillText: { color: '#5B4300', fontFamily: fonts.medium, fontSize: 12 },
+  privacyLink: { alignSelf: 'center', minHeight: 44, justifyContent: 'center', paddingHorizontal: 12 },
+  privacyLinkText: { color: colors.primary, fontFamily: fonts.semibold, fontSize: 12, textDecorationLine: 'underline' },
 });

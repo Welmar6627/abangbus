@@ -13,19 +13,13 @@ import {
   getRouteById,
   routeLengthMeters,
   routes as localRoutes,
-  type RouteDefinition,
-  type TripSnapshot,
 } from '@/lib/abangbus-data';
-import { getTrips, subscribeToTrips } from '@/lib/demo-tracker';
 import {
-  isRemoteBackendReady,
-  loadActiveTrips,
   loadFavoriteStops,
-  loadPilotRoutes,
   setFavoriteStop,
 } from '@/lib/supabase-transit';
-import { supabase } from '@/lib/supabase';
 import { useSupabaseSession } from '@/lib/use-session';
+import { useLiveTransit } from '@/lib/use-live-transit';
 import { colors, fonts } from '@/lib/theme';
 
 export default function RouteDetailScreen() {
@@ -33,52 +27,12 @@ export default function RouteDetailScreen() {
   const params = useLocalSearchParams<{ routeId?: string }>();
   const routeId = typeof params.routeId === 'string' ? params.routeId : localRoutes[0].id;
   const [session] = useSupabaseSession();
-  const [routeList, setRouteList] = useState<RouteDefinition[]>(localRoutes);
-  const [trips, setTrips] = useState<TripSnapshot[]>(getTrips());
+  const { routes: routeList, trips, backendReady } = useLiveTransit(`abangbus-route-${routeId}`);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [favoriteStopIds, setFavoriteStopIds] = useState<string[]>([]);
   const [busyStopId, setBusyStopId] = useState<string | null>(null);
   const [following, setFollowing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const backendReady = isRemoteBackendReady();
-
-  useEffect(() => {
-    let alive = true;
-
-    const refresh = async () => {
-      const remoteRoutes = await loadPilotRoutes();
-      const remoteTrips = backendReady ? await loadActiveTrips(remoteRoutes) : getTrips();
-      if (!alive) {
-        return;
-      }
-      setRouteList(remoteRoutes);
-      setTrips(remoteTrips);
-    };
-
-    void refresh();
-
-    if (!backendReady) {
-      const unsubscribe = subscribeToTrips(setTrips);
-      return () => {
-        alive = false;
-        unsubscribe();
-      };
-    }
-
-    const channel = supabase
-      ?.channel(`abangbus-route-${routeId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_positions' }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'trips' }, refresh)
-      .subscribe();
-
-    return () => {
-      alive = false;
-      if (channel) {
-        void supabase?.removeChannel(channel);
-      }
-    };
-  }, [backendReady, routeId]);
-
   useEffect(() => {
     if (!backendReady || !session) {
       setFavoriteStopIds([]);
