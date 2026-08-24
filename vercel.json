@@ -16,6 +16,7 @@
     }
   ],
   "rewrites": [
-    { "source": "/((?!_expo/|assets/|favicon.ico).*)", "destination": "/index.html" }
+    { "source": "/route/:path*", "destination": "/" },
+    { "source": "/((?!_expo/|assets/|favicon.ico).*)", "destination": "/" }
   ]
 }
