@@ -1,6 +1,8 @@
-import { StyleSheet, Text, View } from 'react-native';
-import MapView, { Marker, UrlTile } from 'react-native-maps';
+import { useEffect, useRef } from 'react';
+import { Image, StyleSheet, Text, View } from 'react-native';
+import MapView, { AnimatedRegion, Marker, UrlTile } from 'react-native-maps';
 import { type RouteDefinition, type TripSnapshot } from '@/lib/abangbus-data';
+import { getTripFreshness } from '@/lib/trip-freshness';
 
 type RouteMapProps = {
   route: RouteDefinition;
@@ -42,20 +44,9 @@ export default function RouteMap({ route, trips, height = 330, selectedTripId, o
             description={route.code}
           />
         ))}
-        {trips.map((trip) => {
-          const selected = selectedTripId === trip.id;
-          return (
-            <Marker
-              key={trip.id}
-              coordinate={trip.position}
-              title={`${trip.busCode} on ${route.code}`}
-              description={`${trip.driverName} - ${trip.speedKph.toFixed(0)} km/h`}
-              pinColor={route.color}
-              zIndex={selected ? 2 : 1}
-              onPress={() => onSelectTrip?.(trip.id)}
-            />
-          );
-        })}
+        {trips.map((trip) => (
+          <NativeBusMarker key={trip.id} trip={trip} routeCode={route.code} selected={selectedTripId === trip.id} onPress={onSelectTrip} />
+        ))}
       </MapView>
       <View style={[styles.routePill, { backgroundColor: route.color }]}> 
         <Text style={styles.routePillText}>{route.code}</Text>
@@ -64,6 +55,34 @@ export default function RouteMap({ route, trips, height = 330, selectedTripId, o
         <Text style={styles.attributionText}>© OpenStreetMap contributors</Text>
       </View>
     </View>
+  );
+}
+
+function NativeBusMarker({ trip, routeCode, selected, onPress }: { trip: TripSnapshot; routeCode: string; selected: boolean; onPress?: (tripId: string) => void }) {
+  const coordinate = useRef(new AnimatedRegion({ ...trip.position, latitudeDelta: 0, longitudeDelta: 0 })).current;
+  const freshness = getTripFreshness(trip.lastUpdatedAt);
+
+  useEffect(() => {
+    const region = { ...trip.position, latitudeDelta: 0, longitudeDelta: 0 };
+    coordinate.timing({ ...region, toValue: region, duration: 7000, useNativeDriver: false } as never).start();
+  }, [coordinate, trip.position]);
+
+  return (
+    <Marker.Animated
+      coordinate={coordinate as unknown as TripSnapshot['position']}
+      anchor={{ x: 0.5, y: 0.5 }}
+      rotation={trip.bearing || 0}
+      flat
+      title={`${trip.busCode} on ${routeCode}`}
+      description={`${trip.driverName} · ${Math.round(trip.speedKph)} km/h · ${freshness}`}
+      zIndex={selected ? 3 : 2}
+      onPress={() => onPress?.(trip.id)}
+    >
+      <View style={[styles.busMarker, selected && styles.busMarkerSelected, freshness === 'stale' && styles.busMarkerStale]}>
+        <Image source={require('@/assets/images/live-bus-3d.png')} style={styles.busImage} resizeMode="contain" fadeDuration={0} />
+        <View style={[styles.freshnessDot, freshness === 'delayed' && styles.freshnessDelayed, freshness === 'stale' && styles.freshnessStale]} />
+      </View>
+    </Marker.Animated>
   );
 }
 
@@ -77,6 +96,13 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  busMarker: { width: 52, height: 72, alignItems: 'center', justifyContent: 'center' },
+  busMarkerSelected: { width: 62, height: 84 },
+  busMarkerStale: { opacity: 0.62 },
+  busImage: { width: '100%', height: '100%' },
+  freshnessDot: { position: 'absolute', right: 0, top: 2, width: 10, height: 10, borderRadius: 5, backgroundColor: '#006E1C', borderWidth: 2, borderColor: '#FFFFFF' },
+  freshnessDelayed: { backgroundColor: '#946F00' },
+  freshnessStale: { backgroundColor: '#64748B' },
   routePill: {
     position: 'absolute',
     top: 14,
