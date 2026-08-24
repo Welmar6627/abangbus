@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppBrand } from '@/components/AppBrand';
-import { updatePassword } from '@/lib/supabase-transit';
+import { updatePassword } from '@/lib/supabase-auth';
 import { validatePassword } from '@/lib/input-validation';
 import { colors, fonts } from '@/lib/theme';
 

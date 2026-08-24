@@ -12,7 +12,12 @@ storage.
 - `components/` — shared branding, navigation, and native/web map adapters.
 - `lib/abangbus-data.ts` — domain types, local pilot fallback, ETA/progress math.
 - `lib/demo-tracker.ts` — in-memory demo mode used only without Supabase.
-- `lib/supabase-transit.ts` — typed client gateway for auth and transit data.
+- `lib/supabase-auth.ts` — authentication and OAuth gateway.
+- `lib/supabase-transit.ts` — transit queries and mutation RPCs.
+- `lib/use-session.ts` — one shared app-wide session subscription.
+- `lib/use-live-transit.ts` — coalesced Realtime refresh and view state.
+- `lib/latest-value-queue.ts` — serialized, latest-value GPS publishing.
+- `lib/transit-mappers.ts` — defensive database-to-domain mapping.
 - `lib/input-validation.ts` — client-side validation mirrored by database checks.
 - `supabase/migrations/` — authoritative schema, RLS, RPC, seed, and audit history.
 
@@ -113,11 +118,18 @@ having count(*) > 1;
 Resolve any result explicitly, take a database backup, run the migration in
 staging, run Supabase security/performance advisors, then promote it.
 
+`20260824152522_location_history_retention.sql` adds a daily database job that
+purges detailed bus positions after 30 days and application audit records after
+365 days. `20260824153005_advisor_hardening.sql` optimizes hot RLS checks and
+adds foreign-key lookup indexes. Run `supabase/tests/production_security.sql`
+against every promoted environment to verify the API grants and RLS posture.
+
 ## Verification
 
 ```powershell
 npm run check
-npx expo export --platform web
+npm run export:web
+npx expo-doctor
 ```
 
 For a release candidate, also verify on physical Android/iOS devices:
@@ -144,6 +156,21 @@ For a release candidate, also verify on physical Android/iOS devices:
 6. Restrict Supabase Auth redirects and OAuth origins to exact production URLs.
 7. Enable database backups/PITR as appropriate, alert on failed auth and denied
    audit events, and define retention for precise location history.
+
+The repository includes:
+
+- `.github/workflows/quality.yml` for checks, web export, and Android release
+  compilation with Java 17;
+- `vercel.json` for the web build, SPA routing, HTTPS security headers, and
+  restrictive browser permissions;
+- `eas.json` for development, preview, and auto-incrementing production builds;
+- `docs/PRIVACY.md` and the public `/privacy` route.
+
+Before public launch, replace the operator placeholder in the privacy notice,
+publish a monitored privacy/support email, bootstrap the first trusted admin,
+verify Supabase Auth settings and redirects, configure crash monitoring, and
+complete signed store builds from an authenticated EAS account. These are
+release gates, not optional documentation tasks.
 
 Location history is sensitive. Establish a documented retention/deletion policy
 and obtain appropriate privacy/legal review before real passenger operations.

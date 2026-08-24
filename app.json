@@ -3,6 +3,7 @@
     "name": "AbangBus",
     "slug": "abangbus",
     "version": "1.0.0",
+    "runtimeVersion": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "abangbus",
@@ -18,11 +19,15 @@
       },
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION"
+        "ACCESS_COARSE_LOCATION"
       ],
-      "package": "com.abangbus.app"
+      "blockedPermissions": [
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION"
+      ],
+      "package": "com.abangbus.app",
+      "versionCode": 1
     },
     "web": {
       "bundler": "metro",
@@ -34,8 +39,8 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location while driving to track the bus position.",
-          "locationAlwaysPermission": "Allow $(PRODUCT_NAME) to use your location even when the app is in the background to share bus position with riders.",
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": false,
           "locationWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location while using the app."
         }
       ],

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -36,13 +36,16 @@ import {
   isRemoteBackendReady,
   loadCurrentProfile,
   loadPilotRoutes,
-  signOut,
   upsertRemotePosition,
   type UserProfile,
 } from '@/lib/supabase-transit';
+import { signOut } from '@/lib/supabase-auth';
 import { useSupabaseSession } from '@/lib/use-session';
 import { colors, fonts } from '@/lib/theme';
 import { normalizeBusCode, validateBusCode } from '@/lib/input-validation';
+import { LatestValueQueue } from '@/lib/latest-value-queue';
+
+type RemotePositionUpdate = Parameters<typeof upsertRemotePosition>[0];
 
 export default function DriverScreen() {
   const router = useRouter();
@@ -59,12 +62,16 @@ export default function DriverScreen() {
   const [statusLabel, setStatusLabel] = useState('Ready for dispatch');
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const positionQueueRef = useRef<LatestValueQueue<RemotePositionUpdate> | null>(null);
   const backendReady = isRemoteBackendReady();
 
   useEffect(() => subscribeToTrips(setActiveTrips), []);
 
   useEffect(() => {
-    return () => watcher?.remove();
+    return () => {
+      watcher?.remove();
+      positionQueueRef.current?.stop();
+    };
   }, [watcher]);
 
   useEffect(() => {
@@ -162,18 +169,24 @@ export default function DriverScreen() {
         };
         setCurrentTrip(trip);
 
+        const positionQueue = new LatestValueQueue<RemotePositionUpdate>(
+          upsertRemotePosition,
+          () => setErrorMessage('A GPS update failed. The app will retry on the next reading.'),
+        );
+        positionQueueRef.current = positionQueue;
+
         const subscription = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.High, timeInterval: 8000, distanceInterval: 8 },
           (location) => {
             const nextPosition = { latitude: location.coords.latitude, longitude: location.coords.longitude };
-            void upsertRemotePosition({
+            positionQueue.enqueue({
               tripId: remoteTrip.id,
               location: nextPosition,
               bearing: location.coords.heading,
               speedMps: location.coords.speed,
               accuracyM: location.coords.accuracy,
               isMock: Boolean((location as Location.LocationObject & { mocked?: boolean }).mocked),
-            }).catch(() => setErrorMessage('A GPS update failed. The app will retry on the next reading.'));
+            });
             setCurrentTrip((current) => current?.id === remoteTrip.id ? {
               ...current,
               position: nextPosition,
@@ -231,10 +244,13 @@ export default function DriverScreen() {
     setBusy(true);
     setErrorMessage(null);
     try {
-      watcher?.remove();
-      setWatcher(null);
+      await positionQueueRef.current?.whenIdle();
       if (backendReady && currentTrip.source === 'driver') await completeRemoteTrip(currentTrip.id);
       else endDemoTrip(currentTrip.id);
+      watcher?.remove();
+      setWatcher(null);
+      positionQueueRef.current?.stop();
+      positionQueueRef.current = null;
       setCurrentTrip(null);
       setStatusLabel('Trip completed');
       setPermissionLabel('Location sharing has stopped.');
