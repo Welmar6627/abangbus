@@ -29,26 +29,72 @@ function getBounds(route: RouteDefinition) {
   };
 }
 
-function getEmbedUrl(route: RouteDefinition) {
-  const bounds = getBounds(route);
-  const bbox = [bounds.minLng, bounds.minLat, bounds.maxLng, bounds.maxLat].join(',');
+const WEB_TILE_ZOOM = 9;
 
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik`;
+function longitudeToTileX(longitude: number, zoom: number) {
+  return ((longitude + 180) / 360) * 2 ** zoom;
+}
+
+function latitudeToTileY(latitude: number, zoom: number) {
+  const radians = (latitude * Math.PI) / 180;
+  return ((1 - Math.asinh(Math.tan(radians)) / Math.PI) / 2) * 2 ** zoom;
+}
+
+function projectToMap(route: RouteDefinition, latitude: number, longitude: number) {
+  const bounds = getBounds(route);
+  const minX = longitudeToTileX(bounds.minLng, WEB_TILE_ZOOM);
+  const maxX = longitudeToTileX(bounds.maxLng, WEB_TILE_ZOOM);
+  const minY = latitudeToTileY(bounds.maxLat, WEB_TILE_ZOOM);
+  const maxY = latitudeToTileY(bounds.minLat, WEB_TILE_ZOOM);
+  return {
+    left: ((longitudeToTileX(longitude, WEB_TILE_ZOOM) - minX) / (maxX - minX)) * 100,
+    top: ((latitudeToTileY(latitude, WEB_TILE_ZOOM) - minY) / (maxY - minY)) * 100,
+  };
+}
+
+function WebTileSurface({ route }: { route: RouteDefinition }) {
+  const bounds = getBounds(route);
+  const minX = longitudeToTileX(bounds.minLng, WEB_TILE_ZOOM);
+  const maxX = longitudeToTileX(bounds.maxLng, WEB_TILE_ZOOM);
+  const minY = latitudeToTileY(bounds.maxLat, WEB_TILE_ZOOM);
+  const maxY = latitudeToTileY(bounds.minLat, WEB_TILE_ZOOM);
+  const tiles = [];
+
+  for (let x = Math.floor(minX); x <= Math.floor(maxX); x += 1) {
+    for (let y = Math.floor(minY); y <= Math.floor(maxY); y += 1) {
+      tiles.push(createElement('img', {
+        key: `${x}-${y}`,
+        src: `https://tile.openstreetmap.org/${WEB_TILE_ZOOM}/${x}/${y}.png`,
+        alt: '',
+        loading: 'lazy',
+        referrerPolicy: 'strict-origin-when-cross-origin',
+        draggable: false,
+        style: {
+          position: 'absolute',
+          left: `${((x - minX) / (maxX - minX)) * 100}%`,
+          top: `${((y - minY) / (maxY - minY)) * 100}%`,
+          width: `${(1 / (maxX - minX)) * 100 + 0.2}%`,
+          height: `${(1 / (maxY - minY)) * 100 + 0.2}%`,
+          maxWidth: 'none',
+          userSelect: 'none',
+        },
+      }));
+    }
+  }
+
+  return createElement('div', {
+    role: 'img',
+    'aria-label': `${route.name} route map`,
+    style: { position: 'absolute', inset: 0, overflow: 'hidden', background: '#DCE9F2' },
+  }, tiles);
 }
 
 export default function RouteMap({ route, trips, height = 330, selectedTripId, onSelectTrip }: RouteMapProps) {
   const selectedTrip = trips.find((trip) => trip.id === selectedTripId) ?? trips[0];
-  const map = createElement('iframe', {
-    src: getEmbedUrl(route),
-    title: `${route.name} OpenStreetMap`,
-    loading: 'lazy',
-    referrerPolicy: 'strict-origin-when-cross-origin',
-    style: { width: '100%', height: '100%', border: 0, display: 'block' },
-  });
 
   return (
     <View style={[styles.container, { height }]}> 
-      {map}
+      <WebTileSurface route={route} />
       {trips.map((trip) => (
         <WebBusMarker key={trip.id} route={route} trip={trip} selected={trip.id === selectedTrip?.id} onPress={onSelectTrip} />
       ))}
@@ -72,9 +118,7 @@ export default function RouteMap({ route, trips, height = 330, selectedTripId, o
 }
 
 function WebBusMarker({ route, trip, selected, onPress }: { route: RouteDefinition; trip: TripSnapshot; selected: boolean; onPress?: (tripId: string) => void }) {
-  const bounds = getBounds(route);
-  const left = ((trip.position.longitude - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * 100;
-  const top = ((bounds.maxLat - trip.position.latitude) / (bounds.maxLat - bounds.minLat)) * 100;
+  const { left, top } = projectToMap(route, trip.position.latitude, trip.position.longitude);
   const freshness = getTripFreshness(trip.lastUpdatedAt);
   const color = freshness === 'live' ? '#006E1C' : freshness === 'delayed' ? '#946F00' : '#64748B';
 
